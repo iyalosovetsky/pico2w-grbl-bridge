@@ -38,10 +38,20 @@ void usb_host_cdc_init(void) {
     pio_cfg.pin_dp = PIO_USB_HOST_DP_PIN;
     pio_cfg.pio_tx_num = PIO_USB_HOST_PIO_INDEX;
     pio_cfg.pio_rx_num = PIO_USB_HOST_PIO_INDEX;
-    tuh_configure(BOARD_TUH_RHPORT, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
-    tuh_init(BOARD_TUH_RHPORT);
+
+    bool cfg_ok = tuh_configure(BOARD_TUH_RHPORT, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
+    bool init_ok = tuh_init(BOARD_TUH_RHPORT);
+
+    if (!cfg_ok || !init_ok) {
+        printf("[usb] PIO-USB host FAILED to start: tuh_configure=%d tuh_init=%d"
+               " (D+=GP%d D-=GP%d PIO%d) — this is a setup/resource problem, not wiring;"
+               " nothing will ever attach until it's fixed\r\n",
+               cfg_ok, init_ok, PIO_USB_HOST_DP_PIN, PIO_USB_HOST_DP_PIN + 1, PIO_USB_HOST_PIO_INDEX);
+        return;
+    }
+
     printf("[usb] PIO-USB host ready: D+=GP%d D-=GP%d PIO%d — waiting for a device"
-           " (nothing here ever means check VBUS wiring, see README)\r\n",
+           " (nothing here ever means check the wiring, see README)\r\n",
            PIO_USB_HOST_DP_PIN, PIO_USB_HOST_DP_PIN + 1, PIO_USB_HOST_PIO_INDEX);
 }
 
