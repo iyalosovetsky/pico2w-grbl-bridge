@@ -14,9 +14,31 @@ pico_sdk_init()
 
 # PIO-USB host wiring, overridable at configure time (see also tools/build.sh):
 #   -DPIO_USB_HOST_DP_PIN=<gpio>   D+ pin; D- is always this pin + 1 (library default pinout)
-#   -DPIO_USB_HOST_PIO_INDEX=<0|1|2>  which PIO block to claim (kept off whatever CYW43 uses)
+#   -DPIO_USB_HOST_PIO_INDEX=<0|1|...>  which PIO block to claim (kept off whatever CYW43 uses)
 set(PIO_USB_HOST_DP_PIN 0 CACHE STRING "GPIO pin for the PIO-USB host port's D+ (D- = this + 1)")
-set(PIO_USB_HOST_PIO_INDEX 1 CACHE STRING "PIO block index (0/1/2) claimed by the PIO-USB host")
+set(PIO_USB_HOST_PIO_INDEX 1 CACHE STRING "PIO block index claimed by the PIO-USB host")
+
+# RP2040 (pico_w) has 2 PIO blocks (valid index 0-1); RP2350 (pico2_w) has 3 (0-2). An
+# out-of-range index isn't caught at runtime — hardware_pio's own bounds check
+# (invalid_params_if) is compiled out by default in this build — pio_get_instance()
+# would silently return a pointer past the end of its internal PIO-instance array, and
+# everything built on top of that garbage pointer corrupts unrelated memory/peripherals
+# instead of failing cleanly. Catch it here instead, at configure time.
+if(PICO_PLATFORM STREQUAL "rp2040")
+    set(_PIO_USB_MAX_PIO_INDEX 1)
+else()
+    set(_PIO_USB_MAX_PIO_INDEX 2)
+endif()
+if(PIO_USB_HOST_PIO_INDEX LESS 0 OR PIO_USB_HOST_PIO_INDEX GREATER _PIO_USB_MAX_PIO_INDEX)
+    message(FATAL_ERROR "PIO_USB_HOST_PIO_INDEX=${PIO_USB_HOST_PIO_INDEX} is invalid for "
+        "PICO_BOARD=${PICO_BOARD} (${PICO_PLATFORM}): valid range is 0-${_PIO_USB_MAX_PIO_INDEX} "
+        "on this chip (RP2040 boards like pico_w have 2 PIO blocks: 0-1; RP2350 boards like "
+        "pico2_w have 3: 0-2).")
+endif()
+if(PIO_USB_HOST_DP_PIN LESS 0 OR PIO_USB_HOST_DP_PIN GREATER 28)
+    message(FATAL_ERROR "PIO_USB_HOST_DP_PIN=${PIO_USB_HOST_DP_PIN} is invalid: must be 0-28 "
+        "(D- is always this pin + 1, and GPIO goes up to 29).")
+endif()
 
 # Optional WiFi STA credentials baked into the firmware as a fallback, used only until
 # something is saved to flash (via /api/wifi, or a prior build with these set) — see

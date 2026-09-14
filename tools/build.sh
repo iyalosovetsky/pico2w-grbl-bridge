@@ -57,7 +57,10 @@ Options:
   --board <pico_w|pico2_w>     Target board (default: pico2_w)
   --sdk <path>                 pico-sdk path (default: \$PICO_SDK_PATH)
   --dp-pin <gpio>               PIO-USB host D+ pin; D- is this + 1 (default: 0)
-  --pio <0|1|2>                  PIO block claimed by the PIO-USB host (default: 1)
+  --pio <n>                    PIO block claimed by the PIO-USB host (default: 1).
+                                 0-1 on pico_w (RP2040, 2 PIO blocks); 0-2 on pico2_w
+                                 (RP2350, 3 PIO blocks) — cmake errors out on an
+                                 out-of-range value instead of building, see CMakeLists.txt
   --wifi-ssid <ssid>              Default WiFi SSID baked into the firmware
   --wifi-password <password>       Default WiFi password baked into the firmware
   -j, --jobs <n>                     Parallel build jobs (default: nproc)
