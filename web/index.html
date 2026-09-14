@@ -154,6 +154,15 @@ const STALE_MS = 3000;
 let lastSeenStatusMs = null;
 let lastFreshWallClock = Date.now();
 
+// No re-entrancy guard here before was letting setInterval fire a new /api/status fetch
+// every 500ms even if the previous one hadn't finished yet (slower on a loaded WiFi
+// link, or while the "full" console view is re-rendering its bigger, constantly
+// changing content) — those pile up as concurrent connections against a server with
+// only a 4-deep TCP backlog, and sending a command made it worse by firing an
+// *immediate* extra refreshStatus() right on top of whatever the timer was about to do
+// anyway. Skip a tick outright if the last one is still in flight.
+let statusFetchInFlight = false;
+
 function hasActiveSelectionIn(el) {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return false;
@@ -161,6 +170,8 @@ function hasActiveSelectionIn(el) {
 }
 
 async function refreshStatus() {
+  if (statusFetchInFlight) return; // previous poll hasn't finished — don't pile another on top
+  statusFetchInFlight = true;
   try {
     const r = await api('/api/status');
     const s = await r.json();
@@ -231,6 +242,8 @@ async function refreshStatus() {
     document.getElementById('connDot').className = 'conn-dot';
     document.getElementById('statusPill').textContent = '';
     document.getElementById('statusPill').className = 'status-pill';
+  } finally {
+    statusFetchInFlight = false;
   }
 }
 

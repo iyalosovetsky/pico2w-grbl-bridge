@@ -76,9 +76,11 @@ void shared_state_request_realtime(char which); // '!' | '~' | 0x18
 bool shared_state_take_realtime(char *out);      // core1 side: pop one pending request
 
 // LED heartbeat: core1 (grbl_link.c) calls this once per parsed '<...>' status report;
-// every 20th call arms a pending pulse that core0 (led.c) consumes to blink the onboard
-// LED, as a simple "still talking to grblHAL" indicator.
-#define LED_HEARTBEAT_EVERY_N_LINES 20
+// every 10th call arms a pending pulse that core0 (led.c) consumes to blink the onboard
+// LED, as a simple "still talking to grblHAL" indicator. 10, not 20: status reports now
+// arrive every 500ms instead of 250ms (STATUS_POLL_INTERVAL_MS in grbl_link.c), so this
+// was halved alongside it to keep the same real-world blink rate.
+#define LED_HEARTBEAT_EVERY_N_LINES 10
 void shared_state_notify_status_line(void);
 bool shared_state_take_led_pulse(void); // core0 side: true once, then clears
 

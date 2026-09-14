@@ -23,8 +23,9 @@ Confirmed working end-to-end on real hardware (SKR Pico + Pico W) as of 2026-09-
 - **Core 1** owns the USB-host link exclusively (`src/usb_host_cdc.c`, `src/grbl_link.c`):
   pumps TinyUSB's host stack on the native USB controller, sends queued G-code lines one
   at a time with the normal `ok`/`error:` handshake, sends real-time bytes
-  (`?`/`!`/`~`/soft-reset) out of band, and polls `?` every 250 ms to keep the machine
-  state fresh.
+  (`?`/`!`/`~`/soft-reset) out of band, and polls `?` every 500 ms to keep the machine
+  state fresh (`STATUS_POLL_INTERVAL_MS` — this rig doesn't need finer-grained polling
+  than that).
 - **Core 0** owns WiFi and the HTTP server: `src/wifi_config.c`, `src/http_server.c`,
   `src/api_handlers.c` — a minimal non-blocking HTTP/1.0 server on lwIP's raw TCP API, no
   RTOS, no sockets layer.
@@ -119,7 +120,7 @@ Without a console attached, the onboard LED (`src/led.c`) is the only feedback t
 |---|---|
 | Fast blink (~150ms) | Booting, no WiFi IP yet |
 | Three short flashes, once | Just got an IP (STA connected, or its own AP came up) |
-| Off, brief pulse every 20th line | Normal operation — pulses once per 20 grblHAL status reports received (a "still talking to grblHAL" heartbeat; `LED_HEARTBEAT_EVERY_N_LINES` in `shared_state.h`) |
+| Off, brief pulse every 10th line | Normal operation — pulses once per 10 grblHAL status reports received (a "still talking to grblHAL" heartbeat; `LED_HEARTBEAT_EVERY_N_LINES` in `shared_state.h` — halved alongside the poll interval so the real-world blink rate is unchanged) |
 
 ### Recovering from a stalled USB link
 
@@ -139,6 +140,15 @@ this brief might not even reach the watchdog's timeout, or the HTTP server itsel
 be the thing that's stuck: if the board's own `last_status_ms` hasn't advanced in 3s, the
 page shows "з'єднання втрачене" and blanks the status/position fields instead of a
 frozen "Idle" that looks fine but isn't (`STALE_MS` in `web/index.html`).
+
+A separate, real bug hit the board itself: `refreshStatus()`'s `setInterval` had no
+re-entrancy guard, so a poll that took longer than 500ms (more likely with the "full"
+console view's constantly-changing, larger content) let the next tick fire an overlapping
+`fetch()` on top of it — and sending a command made this far more likely, since it fired
+an *extra* immediate `refreshStatus()` right next to whatever the timer was about to do
+anyway. Enough overlapping connections against a server with only a small TCP backlog
+(`tcp_listen_with_backlog`, bumped 4 → 8 as extra headroom) could wedge it. Fixed with a
+`statusFetchInFlight` flag that skips a tick outright if the previous one hasn't finished.
 
 ## WiFi setup
 
@@ -185,7 +195,7 @@ curl http://<bridge-ip>/api/status
 ```
 
 `console` is a full, unfiltered transcript (every line sent and received, including raw
-`<...>` status reports every 250ms). `console_filtered` is the same transcript minus the
+`<...>` status reports every 500ms). `console_filtered` is the same transcript minus the
 status-report firehose: sent commands, everything else grblHAL says (`ok`/`error:`/
 `ALARM:`/`[MSG:...]`/`$$` dumps/...), and — on an actual state transition (e.g. `Idle`
 becoming `Run`) or right after a user command even when the status word didn't change —

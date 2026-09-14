@@ -11,7 +11,7 @@
 #include "shared_state.h"
 #include "usb_host_cdc.h"
 
-#define STATUS_POLL_INTERVAL_MS 250
+#define STATUS_POLL_INTERVAL_MS 500 // this rig doesn't need finer-grained polling than this
 // Generous on purpose: a blocking command (homing, a long dwell) legitimately holds
 // off 'ok' until it's done, and we'd rather wait than desync the queue.
 #define LINE_TIMEOUT_MS 30000

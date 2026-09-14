@@ -242,7 +242,7 @@ bool http_server_start(void) {
         tcp_close(pcb);
         return false;
     }
-    struct tcp_pcb *listen_pcb = tcp_listen_with_backlog(pcb, 4);
+    struct tcp_pcb *listen_pcb = tcp_listen_with_backlog(pcb, 8);
     if (!listen_pcb) {
         tcp_close(pcb);
         return false;
