@@ -57,6 +57,19 @@ static void handle_status(char *out, size_t cap, http_response_t *resp) {
         pos += snprintf(out + pos, cap - pos, "null");
     }
 
+    // Turntable (TBL/TBLABS) and tilt servo (ST3215), reported outside grbl's own axes.
+    if (st.has_table) {
+        pos += snprintf(out + pos, cap - pos, ",\"table\":%.2f,\"table_abs\":%.2f",
+                         (double) st.table_deg, (double) st.table_abs_deg);
+    } else {
+        pos += snprintf(out + pos, cap - pos, ",\"table\":null,\"table_abs\":null");
+    }
+    if (st.has_servo) {
+        pos += snprintf(out + pos, cap - pos, ",\"servo\":%.2f", (double) st.servo_deg);
+    } else {
+        pos += snprintf(out + pos, cap - pos, ",\"servo\":null");
+    }
+
     wifi_mode_t mode = wifi_config_current_mode();
     pos += snprintf(out + pos, cap - pos, ",\"wifi_mode\":\"%s\",\"ap_ssid\":\"%s\",\"console\":[",
                      mode == WIFI_MODE_AP ? "ap" : "sta", wifi_config_ap_ssid());

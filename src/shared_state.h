@@ -30,6 +30,14 @@ typedef struct {
     bool has_wpos;
     float feed;
     float speed;
+    // Turntable (M102-M104) and ST3215 tilt servo (M101) state, reported by this rig's
+    // grblHAL fork as extra '|TBL:'/'|TBLABS:'/'|ST3215:' status fields since they're
+    // driven independently of grbl's own axes (see the naxes comment above).
+    bool has_table;
+    float table_deg;     // TBL: turntable angle, wrapped to [0,360)
+    float table_abs_deg; // TBLABS: turntable angle, unwrapped total rotation
+    bool has_servo;
+    float servo_deg;     // ST3215: tilt servo angle
     char alarm[GRBL_ALARM_LEN]; // last ALARM:/error: text; cleared once state leaves Alarm
     uint32_t last_status_ms;    // board uptime (ms) of the last parsed '?' report
 } machine_state_t;

@@ -37,10 +37,19 @@ grblHAL link runs entirely over a second, PIO-emulated USB port instead
 
 Axis count is **not** hardcoded to X/Y/Z/A: in this custom grblHAL build the turntable
 (`M102`-`M104`) and the ST3215 tilt servo (`M101`) are driven independently of grbl's
-motion planner and never appear in the `<...>` status report — see `rotary_table.c` /
-`st3215.c`. The bridge just parses however many axes `MPos:`/`WPos:` actually reports
-(whatever grbl axes exist on your build, typically the scanner's X/Y carriage) and treats
-M101-M104 as plain G-code text like everything else sent through `/api/gcode`.
+motion planner, so they're not grbl axes and don't show up in `MPos:`/`WPos:` — see
+`rotary_table.c` / `st3215.c`. The bridge just parses however many axes `MPos:`/`WPos:`
+actually reports (whatever grbl axes exist on your build, typically the scanner's X/Y
+carriage) and treats M101-M104 as plain G-code text like everything else sent through
+`/api/gcode`.
+
+The turntable and servo state itself is picked up from three extra status-report fields
+this rig's grblHAL fork adds for exactly that reason — `TBL` (turntable angle, wrapped to
+0-360°), `TBLABS` (turntable angle, unwrapped total rotation) and `ST3215` (tilt servo
+angle), e.g. `<Idle|MPos:0.000,0.000,0.000|Bf:100,1023|FS:0,0|Ov:100,100,100|TBL:342.01|TBLABS:1062.01|ST3215:151.21>`.
+Parsed in `grbl_link.c`'s `parse_status_report()` alongside `MPos`/`WPos`/`FS`, exposed as
+`table`/`table_abs`/`servo` in `/api/status` (`null` if your build doesn't report them),
+and shown on the web page next to the axis positions.
 
 ## Building
 
@@ -105,7 +114,7 @@ All bodies are plain text (no JSON payloads to build by hand), responses are JSO
 | Method | Path | Body | Notes |
 |---|---|---|---|
 | GET | `/` | — | The web UI |
-| GET | `/api/status` | — | `{connected, status, naxes, mpos[], has_wpos, wpos[], feed, speed, alarm, wifi_mode, ap_ssid, console[]}` |
+| GET | `/api/status` | — | `{connected, status, naxes, mpos[], has_wpos, wpos[], feed, speed, alarm, table, table_abs, servo, wifi_mode, ap_ssid, console[]}` |
 | POST | `/api/gcode` | one command per line | Queued and sent to grblHAL one line at a time; `{total, queued, rejected}` |
 | POST | `/api/hold` | — | Real-time feed hold (`!`) |
 | POST | `/api/resume` | — | Real-time cycle resume (`~`) |

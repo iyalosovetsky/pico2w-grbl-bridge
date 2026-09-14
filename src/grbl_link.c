@@ -58,6 +58,8 @@ static void parse_status_report(const char *raw) {
     float wco[GRBL_MAX_AXES] = {0};
     int n_mpos = 0, n_wpos = 0, n_wco = 0;
     bool have_mpos = false, have_wpos = false, have_wco = false;
+    float table_deg = 0, table_abs_deg = 0, servo_deg = 0;
+    bool have_table = false, have_table_abs = false, have_servo = false;
 
     tok = strtok_r(NULL, "|", &save);
     while (tok) {
@@ -80,8 +82,14 @@ static void parse_status_report(const char *raw) {
                 int nfs = parse_csv_floats(val, fs, 2);
                 if (nfs >= 1) ns.feed = fs[0];
                 if (nfs >= 2) ns.speed = fs[1];
+            } else if (strcmp(key, "TBL") == 0) {
+                have_table = parse_csv_floats(val, &table_deg, 1) > 0;
+            } else if (strcmp(key, "TBLABS") == 0) {
+                have_table_abs = parse_csv_floats(val, &table_abs_deg, 1) > 0;
+            } else if (strcmp(key, "ST3215") == 0) {
+                have_servo = parse_csv_floats(val, &servo_deg, 1) > 0;
             }
-            // Ov/Bf/Pn/Ln/A and other optional fields are left for a later iteration.
+            // Ov/Bf/Pn/Ln and other optional fields are left for a later iteration.
         }
         tok = strtok_r(NULL, "|", &save);
     }
@@ -100,6 +108,18 @@ static void parse_status_report(const char *raw) {
         for (int i = 0; i < n; i++) {
             ns.wpos[i] = mpos[i] - wco[i];
         }
+    }
+
+    // TBL/TBLABS normally arrive together; still show a wrapped-only reading if TBLABS
+    // is ever missing rather than dropping the whole thing.
+    if (have_table || have_table_abs) {
+        ns.has_table = true;
+        ns.table_deg = table_deg;
+        ns.table_abs_deg = have_table_abs ? table_abs_deg : table_deg;
+    }
+    if (have_servo) {
+        ns.has_servo = true;
+        ns.servo_deg = servo_deg;
     }
 
     shared_state_set_status(&ns);

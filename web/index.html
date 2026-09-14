@@ -59,6 +59,7 @@
       <p><span id="connDot" class="conn-dot"></span><span id="connText">—</span>
          &nbsp; <span id="statusPill" class="status-pill">—</span></p>
       <table class="pos" id="posTable"></table>
+      <table class="pos" id="rigTable"></table>
       <p>Feed: <b id="feedVal">0</b> &nbsp; Speed: <b id="speedVal">0</b></p>
       <div class="btnrow">
         <button onclick="rt('hold')">⏸ Hold (!)</button>
@@ -97,6 +98,7 @@ async function api(path, opts) {
 }
 
 function fmt(n) { return Number(n).toFixed(3); }
+function fmt2(n) { return Number(n).toFixed(2); }
 
 async function refreshStatus() {
   try {
@@ -119,6 +121,16 @@ async function refreshStatus() {
       rows += `<tr><td>${letter}</td><td>W ${w}</td><td>M ${m}</td></tr>`;
     }
     t.innerHTML = rows || '<tr><td colspan="3">—</td></tr>';
+
+    const rig = document.getElementById('rigTable');
+    let rigRows = '';
+    if (s.table !== null && s.table !== undefined) {
+      rigRows += `<tr><td>Стіл</td><td>${fmt2(s.table)}°</td><td>всього ${fmt2(s.table_abs)}°</td></tr>`;
+    }
+    if (s.servo !== null && s.servo !== undefined) {
+      rigRows += `<tr><td>Сервотілт</td><td>${fmt2(s.servo)}°</td><td></td></tr>`;
+    }
+    rig.innerHTML = rigRows;
 
     document.getElementById('feedVal').textContent = s.feed;
     document.getElementById('speedVal').textContent = s.speed;
