@@ -53,35 +53,44 @@ and shown on the web page next to the axis positions.
 
 ## Building
 
-Requires `arm-none-eabi-gcc`, `cmake`, `python3`, and a checked-out `pico-sdk` (2.1+, with
-RP2350/Pico 2 W board support) with submodules `lib/tinyusb`, `lib/lwip`,
-`lib/cyw43-driver` initialized. Clone this repo with `--recurse-submodules` (or
-`git submodule update --init`) to pull in the vendored Pico-PIO-USB library.
+Requires `arm-none-eabi-gcc`, `cmake`, `python3`, `picotool` (only for `--flash`), and a
+checked-out `pico-sdk` (2.1+, with RP2350/Pico 2 W board support) with submodules
+`lib/tinyusb`, `lib/lwip`, `lib/cyw43-driver` initialized. Clone this repo with
+`--recurse-submodules` (or `git submodule update --init`) to pull in the vendored
+Pico-PIO-USB library.
 
 ```bash
 git clone --recurse-submodules <this repo>
-mkdir build && cd build
-cmake -DPICO_SDK_PATH=/path/to/pico-sdk -DPICO_BOARD=pico2_w ..   # or -DPICO_BOARD=pico_w for a plain Pico W (RP2040)
-make -j$(nproc)
+export PICO_SDK_PATH=/path/to/pico-sdk
+tools/build.sh                               # pico2_w (RP2350), default PIO-USB pins
+tools/build.sh --board pico_w                # a plain Pico W (RP2040) instead
+tools/build.sh --dp-pin 16 --pio 0           # different PIO-USB pins (see Wiring)
+tools/build.sh --flash                       # build, then flash over picotool
+tools/build.sh --help                        # all options
 ```
 
-Same source tree, same CMakeLists.txt — `PICO_BOARD` is the only thing that changes
-between an RP2040 Pico W and an RP2350 Pico 2 W. Produces `build/bridge.uf2`. Flash it by
-holding BOOTSEL while plugging the board's *native* USB port into your PC, then copy
-`bridge.uf2` onto the `RPI-RP2` drive that appears — the same port stays usable for that
-and for `printf` debugging afterwards (it enumerates as a normal CDC serial device).
+`tools/build.sh` is a thin wrapper: `cmake -S . -B build-<board> -DPICO_SDK_PATH=... -DPICO_BOARD=... -DPIO_USB_HOST_DP_PIN=... -DPIO_USB_HOST_PIO_INDEX=... && cmake --build build-<board>`,
+plus `picotool load -u -v -x build-<board>/bridge.uf2` for `--flash`. Same source tree,
+same CMakeLists.txt for both chips — only `PICO_BOARD` changes between an RP2040 Pico W
+and an RP2350 Pico 2 W. `--flash` needs the board already in BOOTSEL mode (hold BOOTSEL
+while plugging in its *native* USB port) — this firmware doesn't expose picotool's USB
+reset interface, so it can't reboot itself into BOOTSEL remotely. Without `--flash`, copy
+the resulting `build-<board>/bridge.uf2` onto the `RPI-RP2` drive by hand instead. Either
+way, that same native port stays usable afterwards for `printf` debugging (it enumerates
+as a normal CDC serial device).
 
 ## Wiring
 
 The grblHAL link does **not** use the board's native USB connector — it uses a second,
-PIO-emulated USB port on separate GPIO pins (`PIO_USB_HOST_DP_PIN` in `usb_host_cdc.c`,
-default **GP0 = D+, GP1 = D-**), so the native port is free for flashing/debug. Build a
-USB-A host connector wired to:
+PIO-emulated USB port on separate GPIO pins, so the native port is free for flashing/debug.
+Pins default to **GP0 = D+, GP1 = D-**, overridable without editing source via
+`tools/build.sh --dp-pin <gpio> --pio <0|1|2>` (or `cmake -DPIO_USB_HOST_DP_PIN=... -DPIO_USB_HOST_PIO_INDEX=...`
+directly — see `usb_host_cdc.c`). Build a USB-A host connector wired to:
 
 | Signal | Pin |
 |---|---|
-| D+ | GP0 (configurable) |
-| D- | GP1 (D+ pin + 1, fixed by the library's default pinout) |
+| D+ | GP0 (`--dp-pin`) |
+| D- | GP1 (always D+ pin + 1, fixed by the library's default pinout) |
 | VBUS (5V) | An external 5V source, or the board's own VSYS/5V pin |
 | GND | GND |
 

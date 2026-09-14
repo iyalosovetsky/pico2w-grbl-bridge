@@ -10,14 +10,21 @@
 
 // D+ pin for the PIO-USB host port; D- is D+ + 1 (PIO_USB_PINOUT_DPDM, the library
 // default). Wire a full USB-A host connector here (D+, D-, 5V, GND) to the SKR-Pico's
-// USB port — see PINOUT.md. Deliberately NOT the native USB port, which stays free for
+// USB port — see README.md. Deliberately NOT the native USB port, which stays free for
 // flashing/debug (stdio-over-CDC, driven by main.c's tud_init/tud_task).
+// Overridable without editing source: cmake -DPIO_USB_HOST_DP_PIN=<gpio> (see
+// CMakeLists.txt / tools/build.sh --dp-pin).
+#ifndef PIO_USB_HOST_DP_PIN
 #define PIO_USB_HOST_DP_PIN 0
+#endif
 
-// Force the PIO-USB host onto PIO1 (both its TX and RX state machines), away from
-// whatever PIO block the CYW43 WiFi driver's SPI-over-PIO claims dynamically at
+// Which PIO block (0/1/2) the PIO-USB host claims (both its TX and RX state machines),
+// away from whatever block the CYW43 WiFi driver's SPI-over-PIO claims dynamically at
 // cyw43_arch_init() — without this both would default to PIO0 and could collide.
+// Overridable: cmake -DPIO_USB_HOST_PIO_INDEX=<0|1|2> (see tools/build.sh --pio).
+#ifndef PIO_USB_HOST_PIO_INDEX
 #define PIO_USB_HOST_PIO_INDEX 1
+#endif
 
 static uint8_t mounted_idx = 0xFF; // 0xFF = none mounted
 static char line_buf[LINE_BUF_LEN];
