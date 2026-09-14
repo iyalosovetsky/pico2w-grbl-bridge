@@ -91,8 +91,13 @@ directly — see `usb_host_cdc.c`). Build a USB-A host connector wired to:
 |---|---|
 | D+ | GP0 (`--dp-pin`) |
 | D- | GP1 (always D+ pin + 1, fixed by the library's default pinout) |
-| VBUS (5V) | An external 5V source, or the board's own VSYS/5V pin |
+| **VBUS (5V)** | **An external 5V source, or the board's own VSYS/5V pin — see below** |
 | GND | GND |
+
+> **D+/D- alone are not enough.** Without a real 5V wired to VBUS, the SKR Pico never
+> sees a host connect and nothing will ever mount — no error, just permanent silence
+> from `[usb]` on the debug console and `connected: false` on the web page. This is by
+> far the most common reason grblHAL appears unreachable; check it before anything else.
 
 22 Ω series resistors on D+/D- are recommended (standard USB signal integrity practice,
 per Pico-PIO-USB's own docs). Unlike a native-port OTG adapter, **you provide VBUS
@@ -105,8 +110,10 @@ native connector's fixed, input-only VBUS pin.
 
 Bring-up order to sanity-check the hardware before trusting the web UI: flash, open a
 serial terminal on the board's native USB CDC port, plug in the SKR Pico (running
-grblHAL) via the PIO-USB host wiring above, and look for `[usb] CDC mounted` — if that
-never appears, recheck the VBUS wiring above before suspecting a software bug.
+grblHAL) via the PIO-USB host wiring above, and look for `[usb] CDC mounted`. If instead
+you see `[usb] still no device on the PIO-USB host port` repeating every 10s (and never
+even `[usb] device attached`, which fires for *any* USB device regardless of class,
+before CDC-specific enumeration) — that's the VBUS wiring above, not a software bug.
 
 Every boot prints a banner to that same console — what firmware is actually running is
 often the first thing worth checking, especially after a few `--flash`es in a row:

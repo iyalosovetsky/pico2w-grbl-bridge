@@ -40,6 +40,9 @@ void usb_host_cdc_init(void) {
     pio_cfg.pio_rx_num = PIO_USB_HOST_PIO_INDEX;
     tuh_configure(BOARD_TUH_RHPORT, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
     tuh_init(BOARD_TUH_RHPORT);
+    printf("[usb] PIO-USB host ready: D+=GP%d D-=GP%d PIO%d — waiting for a device"
+           " (nothing here ever means check VBUS wiring, see README)\r\n",
+           PIO_USB_HOST_DP_PIN, PIO_USB_HOST_DP_PIN + 1, PIO_USB_HOST_PIO_INDEX);
 }
 
 void usb_host_cdc_task(void) {
@@ -65,6 +68,21 @@ void usb_host_cdc_set_line_callback(usb_host_cdc_line_cb_t cb) {
 
 void usb_host_cdc_set_mount_callback(usb_host_cdc_mount_cb_t cb) {
     mount_cb = cb;
+}
+
+// ---- Generic TinyUSB host callbacks (any device, before/regardless of class) ----
+// Firing here but never followed by "[usb] CDC mounted" below means something enumerated
+// but wasn't recognized as a CDC-ACM device; never firing at all means the PIO-USB host
+// never saw anything electrically attach — almost always the VBUS wiring, not this.
+
+void tuh_mount_cb(uint8_t daddr) {
+    uint16_t vid = 0, pid = 0;
+    tuh_vid_pid_get(daddr, &vid, &pid);
+    printf("[usb] device attached: addr=%u vid=%04x pid=%04x\r\n", daddr, vid, pid);
+}
+
+void tuh_umount_cb(uint8_t daddr) {
+    printf("[usb] device detached: addr=%u\r\n", daddr);
 }
 
 // ---- TinyUSB host CDC callbacks ----

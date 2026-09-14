@@ -15,10 +15,14 @@
 // Generous on purpose: a blocking command (homing, a long dwell) legitimately holds
 // off 'ok' until it's done, and we'd rather wait than desync the queue.
 #define LINE_TIMEOUT_MS 30000
+// How often to remind a live console that nothing has ever attached, in case the
+// one-shot message from usb_host_cdc_init() was printed before a terminal connected.
+#define NO_DEVICE_REMINDER_MS 10000
 
 static bool waiting_ok;
 static absolute_time_t waiting_deadline;
 static absolute_time_t next_poll;
+static absolute_time_t next_no_device_reminder;
 
 static int parse_csv_floats(char *s, float *out, int max) {
     int n = 0;
@@ -165,11 +169,17 @@ void grbl_link_core1_main(void) {
     usb_host_cdc_init();
 
     next_poll = make_timeout_time_ms(STATUS_POLL_INTERVAL_MS);
+    next_no_device_reminder = make_timeout_time_ms(NO_DEVICE_REMINDER_MS);
 
     while (true) {
         usb_host_cdc_task();
 
         bool mounted = usb_host_cdc_is_mounted();
+
+        if (!mounted && time_reached(next_no_device_reminder)) {
+            printf("[usb] still no device on the PIO-USB host port — check VBUS wiring (see README)\r\n");
+            next_no_device_reminder = make_timeout_time_ms(NO_DEVICE_REMINDER_MS);
+        }
 
         char rt;
         if (mounted && shared_state_take_realtime(&rt)) {
