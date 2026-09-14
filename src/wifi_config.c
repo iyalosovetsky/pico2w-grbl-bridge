@@ -21,6 +21,18 @@
 #define WIFI_CFG_FLASH_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 #define STA_CONNECT_TIMEOUT_MS 15000
 
+// Optional build-time fallback (tools/build.sh --wifi-ssid/--wifi-password, or
+// cmake -DWIFI_SSID=... -DWIFI_PASSWORD=...), used only the first time the board boots
+// with nothing saved to flash yet. Once it connects with these, they get written to
+// flash like any other /api/wifi update, so flash — not the build — is the long-term
+// source of truth from then on.
+#ifndef WIFI_SSID_DEFAULT
+#define WIFI_SSID_DEFAULT ""
+#endif
+#ifndef WIFI_PASSWORD_DEFAULT
+#define WIFI_PASSWORD_DEFAULT ""
+#endif
+
 typedef struct {
     uint32_t magic;
     char ssid[WIFI_SSID_MAX_LEN + 1];
@@ -114,7 +126,18 @@ static void start_ap_mode(void) {
 
 wifi_mode_t wifi_config_bringup(void) {
     wifi_credentials_t creds;
-    if (wifi_config_load(&creds)) {
+    bool have_creds = wifi_config_load(&creds);
+    bool from_flash = have_creds;
+
+    if (!have_creds && WIFI_SSID_DEFAULT[0]) {
+        memset(&creds, 0, sizeof(creds));
+        strncpy(creds.ssid, WIFI_SSID_DEFAULT, sizeof(creds.ssid) - 1);
+        strncpy(creds.password, WIFI_PASSWORD_DEFAULT, sizeof(creds.password) - 1);
+        have_creds = true;
+        printf("[wifi] No saved credentials, trying build-time default SSID '%s'\n", creds.ssid);
+    }
+
+    if (have_creds) {
         cyw43_arch_enable_sta_mode();
         printf("[wifi] Connecting to '%s'...\n", creds.ssid);
         int rc = cyw43_arch_wifi_connect_timeout_ms(creds.ssid, creds.password,
@@ -122,11 +145,16 @@ wifi_mode_t wifi_config_bringup(void) {
         if (rc == 0) {
             current_mode = WIFI_MODE_STA;
             printf("[wifi] Connected, IP: %s\n", ip4addr_ntoa(netif_ip4_addr(netif_default)));
+            if (!from_flash) {
+                // First successful connect using the build-time default: persist it so
+                // flash is the source of truth from now on, same as an /api/wifi update.
+                wifi_config_save(&creds);
+            }
             return current_mode;
         }
         printf("[wifi] STA connect to '%s' failed (%d), falling back to AP mode\n", creds.ssid, rc);
     } else {
-        printf("[wifi] No saved credentials, starting in AP mode\n");
+        printf("[wifi] No saved or build-time default credentials, starting in AP mode\n");
     }
     start_ap_mode();
     return current_mode;

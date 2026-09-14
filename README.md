@@ -110,11 +110,25 @@ never appears, recheck the VBUS wiring above before suspecting a software bug.
 
 ## WiFi setup
 
-On first boot (no saved credentials) the bridge starts its own open access point,
-**`ScannerRig-xxxx`**, serving everything at `http://192.168.4.1/`. Configure your home
-network via `POST /api/wifi` (see below) — the board saves the credentials to flash and
-reboots into station mode. If it can't reconnect (wrong password, AP out of range), it
-automatically falls back to its own AP again after a 15s timeout, so it's never stranded.
+Two ways to give the bridge WiFi credentials, and they compose:
+
+1. **At runtime, over the web UI** (`POST /api/wifi`, see below): on first boot, or
+   whenever it has no working saved network, the bridge starts its own open access
+   point, **`ScannerRig-xxxx`**, serving everything at `http://192.168.4.1/`. Configure
+   your home network from there — the board saves the credentials to flash and reboots
+   into station mode. If it can't reconnect (wrong password, AP out of range), it falls
+   back to its own AP again after a 15s timeout, so it's never stranded.
+2. **At build time** (`tools/build.sh --wifi-ssid <ssid> --wifi-password <password>`,
+   or `-DWIFI_SSID=... -DWIFI_PASSWORD=...`): baked into the firmware as a fallback used
+   only until something is saved to flash. Handy so a freshly-flashed board joins your
+   network immediately instead of needing the AP-config dance every time during
+   development. The first time it connects using this, it's saved to flash exactly like
+   an `/api/wifi` update — **flash always wins from then on**, even across a later
+   reflash with a build that has no baked-in default (or a different one).
+
+`--wifi-password` on the command line lands in shell history; export `WIFI_SSID`/
+`WIFI_PASSWORD` as environment variables instead if that matters to you — `build.sh`
+picks them up automatically.
 
 ## REST API
 
