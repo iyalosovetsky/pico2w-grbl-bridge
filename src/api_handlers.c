@@ -1,6 +1,7 @@
 #include "api_handlers.h"
 
 #include <ctype.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -13,6 +14,29 @@
 // small since the web page re-fetches it twice a second over WiFi.
 #define STATUS_CONSOLE_LINES 12
 #define STATUS_FILTERED_LINES 12
+
+// snprintf's return value is how much it *would* have written given unlimited space —
+// once accumulated `pos` has already reached `cap` in a chain of "pos += snprintf(out +
+// pos, cap - pos, ...)" calls, the next call's `cap - pos` (both size_t, unsigned)
+// underflows to a huge number, and snprintf happily writes past the end of `out` for as
+// long as its format demands. handle_status() below chains many such calls (one per
+// JSON field) — this wrapper clamps `pos` so it can never exceed `cap`, so a
+// wider-than-expected field just gets silently truncated instead of corrupting whatever
+// memory follows the buffer.
+static size_t japp(char *out, size_t cap, size_t pos, const char *fmt, ...) {
+    if (pos >= cap) {
+        return cap;
+    }
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(out + pos, cap - pos, fmt, ap);
+    va_end(ap);
+    if (n < 0) {
+        return pos;
+    }
+    pos += (size_t) n;
+    return pos > cap ? cap : pos;
+}
 
 static size_t json_escape_append(char *out, size_t out_cap, size_t pos, const char *s) {
     for (; *s && pos + 2 < out_cap; s++) {
@@ -39,57 +63,56 @@ static void handle_status(char *out, size_t cap, http_response_t *resp) {
     size_t n_filtered = shared_state_filtered_snapshot(filtered, STATUS_FILTERED_LINES);
 
     size_t pos = 0;
-    pos += snprintf(out + pos, cap - pos,
-                     "{\"connected\":%s,\"status\":\"%s\",\"naxes\":%u,\"mpos\":[",
-                     st.connected ? "true" : "false", st.status, st.naxes);
+    pos = japp(out, cap, pos,
+               "{\"connected\":%s,\"status\":\"%s\",\"naxes\":%u,\"mpos\":[",
+               st.connected ? "true" : "false", st.status, st.naxes);
     for (uint8_t i = 0; i < st.naxes && i < GRBL_MAX_AXES; i++) {
-        pos += snprintf(out + pos, cap - pos, "%s%.3f", i ? "," : "", (double) st.mpos[i]);
+        pos = japp(out, cap, pos, "%s%.3f", i ? "," : "", (double) st.mpos[i]);
     }
-    pos += snprintf(out + pos, cap - pos, "],\"has_wpos\":%s,\"wpos\":[",
-                     st.has_wpos ? "true" : "false");
+    pos = japp(out, cap, pos, "],\"has_wpos\":%s,\"wpos\":[", st.has_wpos ? "true" : "false");
     for (uint8_t i = 0; i < st.naxes && i < GRBL_MAX_AXES; i++) {
-        pos += snprintf(out + pos, cap - pos, "%s%.3f", i ? "," : "", (double) st.wpos[i]);
+        pos = japp(out, cap, pos, "%s%.3f", i ? "," : "", (double) st.wpos[i]);
     }
-    pos += snprintf(out + pos, cap - pos, "],\"feed\":%.3f,\"speed\":%.3f,\"alarm\":",
-                     (double) st.feed, (double) st.speed);
+    pos = japp(out, cap, pos, "],\"feed\":%.3f,\"speed\":%.3f,\"alarm\":",
+               (double) st.feed, (double) st.speed);
     if (st.alarm[0]) {
-        pos += snprintf(out + pos, cap - pos, "\"");
+        pos = japp(out, cap, pos, "\"");
         pos = json_escape_append(out, cap, pos, st.alarm);
-        pos += snprintf(out + pos, cap - pos, "\"");
+        pos = japp(out, cap, pos, "\"");
     } else {
-        pos += snprintf(out + pos, cap - pos, "null");
+        pos = japp(out, cap, pos, "null");
     }
 
     // Turntable (TBL/TBLABS) and tilt servo (ST3215), reported outside grbl's own axes.
     if (st.has_table) {
-        pos += snprintf(out + pos, cap - pos, ",\"table\":%.2f,\"table_abs\":%.2f",
-                         (double) st.table_deg, (double) st.table_abs_deg);
+        pos = japp(out, cap, pos, ",\"table\":%.2f,\"table_abs\":%.2f",
+                   (double) st.table_deg, (double) st.table_abs_deg);
     } else {
-        pos += snprintf(out + pos, cap - pos, ",\"table\":null,\"table_abs\":null");
+        pos = japp(out, cap, pos, ",\"table\":null,\"table_abs\":null");
     }
     if (st.has_servo) {
-        pos += snprintf(out + pos, cap - pos, ",\"servo\":%.2f", (double) st.servo_deg);
+        pos = japp(out, cap, pos, ",\"servo\":%.2f", (double) st.servo_deg);
     } else {
-        pos += snprintf(out + pos, cap - pos, ",\"servo\":null");
+        pos = japp(out, cap, pos, ",\"servo\":null");
     }
 
     wifi_mode_t mode = wifi_config_current_mode();
-    pos += snprintf(out + pos, cap - pos,
-                     ",\"wifi_mode\":\"%s\",\"ap_ssid\":\"%s\",\"last_status_ms\":%u,\"console\":[",
-                     mode == WIFI_MODE_AP ? "ap" : "sta", wifi_config_ap_ssid(),
-                     (unsigned) st.last_status_ms);
+    pos = japp(out, cap, pos,
+               ",\"wifi_mode\":\"%s\",\"ap_ssid\":\"%s\",\"last_status_ms\":%u,\"console\":[",
+               mode == WIFI_MODE_AP ? "ap" : "sta", wifi_config_ap_ssid(),
+               (unsigned) st.last_status_ms);
     for (size_t i = 0; i < n_console; i++) {
-        pos += snprintf(out + pos, cap - pos, "%s\"", i ? "," : "");
+        pos = japp(out, cap, pos, "%s\"", i ? "," : "");
         pos = json_escape_append(out, cap, pos, console[i]);
-        pos += snprintf(out + pos, cap - pos, "\"");
+        pos = japp(out, cap, pos, "\"");
     }
-    pos += snprintf(out + pos, cap - pos, "],\"console_filtered\":[");
+    pos = japp(out, cap, pos, "],\"console_filtered\":[");
     for (size_t i = 0; i < n_filtered; i++) {
-        pos += snprintf(out + pos, cap - pos, "%s\"", i ? "," : "");
+        pos = japp(out, cap, pos, "%s\"", i ? "," : "");
         pos = json_escape_append(out, cap, pos, filtered[i]);
-        pos += snprintf(out + pos, cap - pos, "\"");
+        pos = japp(out, cap, pos, "\"");
     }
-    pos += snprintf(out + pos, cap - pos, "]}");
+    pos = japp(out, cap, pos, "]}");
 
     resp->status = 200;
     resp->status_text = "OK";
