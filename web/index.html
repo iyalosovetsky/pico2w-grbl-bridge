@@ -44,7 +44,13 @@
     overflow-y: auto; font-family: ui-monospace, monospace; font-size: 12.5px; white-space: pre-wrap; word-break: break-all; }
   #console div.err { color: #ff8383; }
   #console div.alarm { color: #ffb84d; }
+  #console div.sent { color: #7fb3ff; }
+  #console div.transition { color: #8be08b; font-weight: 600; }
   .alarm-banner { background: var(--err); color: #fff; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; display: none; }
+  .console-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .console-header h2 { margin: 0; }
+  .console-header .btnrow { margin: 0; }
+  button.small { padding: 5px 10px; font-size: 12px; }
   .foot { color: var(--muted); font-size: 12px; margin-top: 10px; }
 </style>
 </head>
@@ -81,7 +87,14 @@
   </div>
 
   <div class="card" style="margin-top:12px;">
-    <h2>Консоль</h2>
+    <div class="console-header">
+      <h2>Консоль</h2>
+      <div class="btnrow">
+        <button id="modeFullBtn" class="small" onclick="setConsoleMode('full')">Повний</button>
+        <button id="modeFilteredBtn" class="small" onclick="setConsoleMode('filtered')">Скорочений</button>
+        <button id="toggleConsoleBtn" class="small" onclick="toggleConsoleVisible()">Сховати</button>
+      </div>
+    </div>
     <div id="console"></div>
   </div>
 
@@ -99,6 +112,33 @@ async function api(path, opts) {
 
 function fmt(n) { return Number(n).toFixed(3); }
 function fmt2(n) { return Number(n).toFixed(2); }
+
+let consoleMode = 'filtered';
+let consoleVisible = true;
+try {
+  consoleMode = localStorage.getItem('consoleMode') || 'filtered';
+  consoleVisible = localStorage.getItem('consoleVisible') !== 'hidden';
+} catch (e) { /* private browsing etc. — defaults above are fine */ }
+
+function setConsoleMode(mode) {
+  consoleMode = mode;
+  try { localStorage.setItem('consoleMode', mode); } catch (e) {}
+  updateConsoleControls();
+  refreshStatus();
+}
+
+function toggleConsoleVisible() {
+  consoleVisible = !consoleVisible;
+  try { localStorage.setItem('consoleVisible', consoleVisible ? 'shown' : 'hidden'); } catch (e) {}
+  updateConsoleControls();
+}
+
+function updateConsoleControls() {
+  document.getElementById('modeFullBtn').classList.toggle('primary', consoleMode === 'full');
+  document.getElementById('modeFilteredBtn').classList.toggle('primary', consoleMode === 'filtered');
+  document.getElementById('console').hidden = !consoleVisible;
+  document.getElementById('toggleConsoleBtn').textContent = consoleVisible ? 'Сховати' : 'Показати';
+}
 
 async function refreshStatus() {
   try {
@@ -143,8 +183,13 @@ async function refreshStatus() {
 
     const c = document.getElementById('console');
     const stick = c.scrollTop + c.clientHeight >= c.scrollHeight - 4;
-    c.innerHTML = (s.console || []).map(line => {
-      const cls = line.startsWith('ALARM') ? 'alarm' : line.startsWith('error') ? 'err' : '';
+    const lines = (consoleMode === 'full' ? s.console : s.console_filtered) || [];
+    c.innerHTML = lines.map(line => {
+      const cls = line.startsWith('ALARM') ? 'alarm'
+        : line.startsWith('error') ? 'err'
+        : line.startsWith('>') ? 'sent'
+        : / -> /.test(line) ? 'transition'
+        : '';
       return `<div class="${cls}">${escapeHtml(line)}</div>`;
     }).join('');
     if (stick) c.scrollTop = c.scrollHeight;
@@ -180,6 +225,7 @@ document.getElementById('gcodeInput').addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendGcode();
 });
 
+updateConsoleControls();
 refreshStatus();
 setInterval(refreshStatus, 500);
 </script>

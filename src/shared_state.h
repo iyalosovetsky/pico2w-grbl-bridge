@@ -38,7 +38,7 @@ typedef struct {
     float table_abs_deg; // TBLABS: turntable angle, unwrapped total rotation
     bool has_servo;
     float servo_deg;     // ST3215: tilt servo angle
-    char alarm[GRBL_ALARM_LEN]; // last ALARM:/error: text; cleared once state leaves Alarm
+    char alarm[GRBL_ALARM_LEN]; // last ALARM:/error: text; cleared by the next user command
     uint32_t last_status_ms;    // board uptime (ms) of the last parsed '?' report
 } machine_state_t;
 
@@ -48,12 +48,21 @@ void shared_state_init(void);
 void shared_state_get(machine_state_t *out);
 void shared_state_set_status(const machine_state_t *in);
 void shared_state_set_connected(bool connected);
-void shared_state_set_alarm(const char *text);
+void shared_state_set_alarm(const char *text);  // sets the banner text (ALARM: or error: line)
+void shared_state_clear_alarm(void);             // called on any user-initiated command
 
-// Console log: ring buffer of raw lines received from grblHAL, for the web UI.
+// Full console log: ring buffer of every raw line sent to and received from grblHAL,
+// for the web UI's "full" view.
 void shared_state_console_push(const char *line);
 // Copies up to max_lines into out[][CONSOLE_LOG_LINE_LEN], oldest first. Returns count copied.
 size_t shared_state_console_snapshot(char out[][CONSOLE_LOG_LINE_LEN], size_t max_lines);
+
+// Filtered console log: sent commands and everything received *except* raw '<...>'
+// status reports, which only appear here as a synthetic "Old -> New" line when the
+// parsed status word actually changes (grbl_link.c's parse_status_report()). Same
+// ring-buffer shape/API as the full log, for the web UI's "filtered" view.
+void shared_state_filtered_push(const char *line);
+size_t shared_state_filtered_snapshot(char out[][CONSOLE_LOG_LINE_LEN], size_t max_lines);
 
 // Outbound G-code line queue: HTTP handlers (core0) push, grbl_link (core1) pops.
 bool gcode_queue_push(const char *line);         // false if the queue is full

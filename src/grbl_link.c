@@ -23,6 +23,7 @@ static bool waiting_ok;
 static absolute_time_t waiting_deadline;
 static absolute_time_t next_poll;
 static absolute_time_t next_no_device_reminder;
+static char last_status_word[GRBL_STATUS_LEN]; // for the filtered log's "Old -> New" lines
 
 static int parse_csv_floats(char *s, float *out, int max) {
     int n = 0;
@@ -126,11 +127,35 @@ static void parse_status_report(const char *raw) {
         ns.servo_deg = servo_deg;
     }
 
+    // Filtered log: skip the (frequent) raw status report itself, but note an actual
+    // state transition (Idle -> Run, Run/Jog -> Idle, ...) since that's the part worth
+    // seeing without the full firehose.
+    if (last_status_word[0] && strcmp(last_status_word, ns.status) != 0) {
+        char change[GRBL_STATUS_LEN * 2 + 8];
+        snprintf(change, sizeof(change), "%s -> %s", last_status_word, ns.status);
+        shared_state_filtered_push(change);
+    }
+    strncpy(last_status_word, ns.status, sizeof(last_status_word) - 1);
+    last_status_word[sizeof(last_status_word) - 1] = '\0';
+
     shared_state_set_status(&ns);
 }
 
 static void on_line(const char *line) {
+    // Full log: absolutely everything, unfiltered.
     shared_state_console_push(line);
+
+    if (line[0] == '<') {
+        // Raw status reports are the one thing the filtered log doesn't want verbatim —
+        // parse_status_report() pushes a synthetic "Old -> New" line there on an actual
+        // state change instead.
+        parse_status_report(line);
+        shared_state_notify_status_line(); // drives the onboard LED heartbeat (led.c)
+        return;
+    }
+
+    // Filtered log: everything else — ok/error/ALARM/messages/banners/$$ dumps.
+    shared_state_filtered_push(line);
 
     if (strcmp(line, "ok") == 0) {
         waiting_ok = false;
@@ -138,15 +163,11 @@ static void on_line(const char *line) {
     }
     if (strncmp(line, "error:", 6) == 0) {
         waiting_ok = false;
+        shared_state_set_alarm(line);
         return;
     }
     if (strncmp(line, "ALARM:", 6) == 0) {
         shared_state_set_alarm(line);
-        return;
-    }
-    if (line[0] == '<') {
-        parse_status_report(line);
-        shared_state_notify_status_line(); // drives the onboard LED heartbeat (led.c)
         return;
     }
     if (strncmp(line, "Grbl", 4) == 0 || strncmp(line, "GrblHAL", 7) == 0) {
@@ -185,6 +206,9 @@ void grbl_link_core1_main(void) {
         char rt;
         if (mounted && shared_state_take_realtime(&rt)) {
             usb_host_cdc_write((const uint8_t *) &rt, 1);
+            const char *label = rt == '!' ? "> ! (hold)" : rt == '~' ? "> ~ (resume)" : "> ^X (reset)";
+            shared_state_console_push(label);
+            shared_state_filtered_push(label);
         }
 
         if (mounted && time_reached(next_poll)) {
@@ -206,6 +230,10 @@ void grbl_link_core1_main(void) {
                 memcpy(out, line, n);
                 out[n] = '\n';
                 if (usb_host_cdc_write((const uint8_t *) out, n + 1)) {
+                    char tagged[GCODE_LINE_LEN + 4];
+                    snprintf(tagged, sizeof(tagged), "> %s", line);
+                    shared_state_console_push(tagged);
+                    shared_state_filtered_push(tagged);
                     waiting_ok = true;
                     waiting_deadline = make_timeout_time_ms(LINE_TIMEOUT_MS);
                 }

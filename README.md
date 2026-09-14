@@ -150,7 +150,7 @@ All bodies are plain text (no JSON payloads to build by hand), responses are JSO
 | Method | Path | Body | Notes |
 |---|---|---|---|
 | GET | `/` | — | The web UI |
-| GET | `/api/status` | — | `{connected, status, naxes, mpos[], has_wpos, wpos[], feed, speed, alarm, table, table_abs, servo, wifi_mode, ap_ssid, console[]}` |
+| GET | `/api/status` | — | `{connected, status, naxes, mpos[], has_wpos, wpos[], feed, speed, alarm, table, table_abs, servo, wifi_mode, ap_ssid, console[], console_filtered[]}` |
 | POST | `/api/gcode` | one command per line | Queued and sent to grblHAL one line at a time; `{total, queued, rejected}` |
 | POST | `/api/hold` | — | Real-time feed hold (`!`) |
 | POST | `/api/resume` | — | Real-time cycle resume (`~`) |
@@ -164,6 +164,20 @@ Example:
 curl -d $'G91\nG1 X5 F300' http://<bridge-ip>/api/gcode
 curl http://<bridge-ip>/api/status
 ```
+
+`console` is a full, unfiltered transcript (every line sent and received, including raw
+`<...>` status reports every 250ms). `console_filtered` is the same transcript minus the
+status-report firehose: sent commands, everything else grblHAL says (`ok`/`error:`/
+`ALARM:`/`[MSG:...]`/`$$` dumps/...), and a synthetic `Old -> New` line only when the
+parsed status word actually changes (e.g. `Idle -> Run`) — see `parse_status_report()` in
+`grbl_link.c`. The web page's console panel shows one at a time with a toggle
+(`Повний`/`Скорочений`) and can be hidden entirely; both ship in every `/api/status`
+response so switching is instant, no extra request.
+
+`alarm` holds the text of the last `error:` or `ALARM:` line and is what the web page's
+red banner shows — it's cleared by the *next user command* (any `/api/gcode`, `/api/hold`,
+`/api/resume`, or `/api/reset` call), not automatically when grblHAL's status moves on, so
+a notice doesn't disappear before you've actually seen it.
 
 ## Status
 

@@ -12,6 +12,7 @@
 // Only the newest few console lines go into every /api/status poll — keep the response
 // small since the web page re-fetches it twice a second over WiFi.
 #define STATUS_CONSOLE_LINES 12
+#define STATUS_FILTERED_LINES 12
 
 static size_t json_escape_append(char *out, size_t out_cap, size_t pos, const char *s) {
     for (; *s && pos + 2 < out_cap; s++) {
@@ -34,6 +35,8 @@ static void handle_status(char *out, size_t cap, http_response_t *resp) {
 
     char console[STATUS_CONSOLE_LINES][CONSOLE_LOG_LINE_LEN];
     size_t n_console = shared_state_console_snapshot(console, STATUS_CONSOLE_LINES);
+    char filtered[STATUS_FILTERED_LINES][CONSOLE_LOG_LINE_LEN];
+    size_t n_filtered = shared_state_filtered_snapshot(filtered, STATUS_FILTERED_LINES);
 
     size_t pos = 0;
     pos += snprintf(out + pos, cap - pos,
@@ -78,6 +81,12 @@ static void handle_status(char *out, size_t cap, http_response_t *resp) {
         pos = json_escape_append(out, cap, pos, console[i]);
         pos += snprintf(out + pos, cap - pos, "\"");
     }
+    pos += snprintf(out + pos, cap - pos, "],\"console_filtered\":[");
+    for (size_t i = 0; i < n_filtered; i++) {
+        pos += snprintf(out + pos, cap - pos, "%s\"", i ? "," : "");
+        pos = json_escape_append(out, cap, pos, filtered[i]);
+        pos += snprintf(out + pos, cap - pos, "\"");
+    }
     pos += snprintf(out + pos, cap - pos, "]}");
 
     resp->status = 200;
@@ -91,6 +100,7 @@ static void handle_status(char *out, size_t cap, http_response_t *resp) {
 // simplest thing a curl one-liner or the bundled web page can produce.
 static void handle_gcode_post(const char *body, size_t body_len, char *out, size_t cap,
                                http_response_t *resp) {
+    shared_state_clear_alarm(); // any user command dismisses the last error:/ALARM: banner
     int queued = 0, rejected = 0, total = 0;
     size_t i = 0;
     while (i < body_len) {
@@ -121,6 +131,7 @@ static void handle_gcode_post(const char *body, size_t body_len, char *out, size
 }
 
 static void handle_realtime(char which, char *out, size_t cap, http_response_t *resp) {
+    shared_state_clear_alarm(); // any user command dismisses the last error:/ALARM: banner
     shared_state_request_realtime(which);
     size_t pos = snprintf(out, cap, "{\"ok\":true}");
     resp->status = 200;
