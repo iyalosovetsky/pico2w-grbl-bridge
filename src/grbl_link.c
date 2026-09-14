@@ -24,6 +24,12 @@ static absolute_time_t waiting_deadline;
 static absolute_time_t next_poll;
 static absolute_time_t next_no_device_reminder;
 static char last_status_word[GRBL_STATUS_LEN]; // for the filtered log's "Old -> New" lines
+// grblHAL (like grbl) doesn't repeat WCO in every status report, only when it changes —
+// a report without one still means "same offset as before", not "no offset known", so
+// we cache the last one seen and keep computing WPos from it in the meantime.
+static float last_wco[GRBL_MAX_AXES];
+static int last_wco_count;
+static bool have_last_wco;
 // Set whenever a command is actually sent (queued G-code line, or a user-triggered
 // realtime hold/resume/reset); makes the *next* status report show up in the filtered
 // log even if the status word itself didn't change, as a "here's where things stand
@@ -108,15 +114,23 @@ static void parse_status_report(const char *raw) {
         ns.naxes = (uint8_t) n_mpos;
         memcpy(ns.mpos, mpos, sizeof(mpos));
     }
+    if (have_wco) {
+        memcpy(last_wco, wco, sizeof(wco));
+        last_wco_count = n_wco;
+        have_last_wco = true;
+    }
+
     if (have_wpos) {
         ns.has_wpos = true;
         memcpy(ns.wpos, wpos, sizeof(wpos));
         if (n_wpos > ns.naxes) ns.naxes = (uint8_t) n_wpos;
-    } else if (have_mpos && have_wco) {
+    } else if (have_mpos && have_last_wco) {
+        // This report may not have repeated WCO — use the last one we saw, per grbl's
+        // own protocol (WCO is only sent when it changes, not on every report).
         ns.has_wpos = true;
-        int n = n_mpos < n_wco ? n_mpos : n_wco;
+        int n = n_mpos < last_wco_count ? n_mpos : last_wco_count;
         for (int i = 0; i < n; i++) {
-            ns.wpos[i] = mpos[i] - wco[i];
+            ns.wpos[i] = mpos[i] - last_wco[i];
         }
     }
 
