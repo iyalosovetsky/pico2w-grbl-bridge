@@ -42,6 +42,17 @@ add_custom_command(
 )
 add_custom_target(web_page_header DEPENDS ${WEB_PAGE_HEADER})
 
+# Build metadata (timestamp, git-derived build number/hash/dirty flag) for the startup
+# banner — regenerated on every build (not just every cmake configure), via a target
+# with no real OUTPUT so it's always considered out of date.
+set(BUILD_INFO_HEADER ${CMAKE_CURRENT_BINARY_DIR}/generated/build_info.h)
+add_custom_target(build_info_header ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/generated
+    COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_build_info.py ${BUILD_INFO_HEADER}
+    BYPRODUCTS ${BUILD_INFO_HEADER}
+    COMMENT "Generating build_info.h"
+)
+
 add_executable(bridge
     src/main.c
     src/usb_descriptors.c
@@ -59,7 +70,7 @@ add_executable(bridge
     ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/dcd_pio_usb.c
     ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c
 )
-add_dependencies(bridge web_page_header)
+add_dependencies(bridge web_page_header build_info_header)
 
 target_include_directories(bridge PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}          # tusb_config.h, lwipopts.h

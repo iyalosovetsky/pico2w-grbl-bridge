@@ -108,6 +108,22 @@ serial terminal on the board's native USB CDC port, plug in the SKR Pico (runnin
 grblHAL) via the PIO-USB host wiring above, and look for `[usb] CDC mounted` — if that
 never appears, recheck the VBUS wiring above before suspecting a software bug.
 
+Every boot prints a banner to that same console — what firmware is actually running is
+often the first thing worth checking, especially after a few `--flash`es in a row:
+
+```
+========================================
+ Scanner Rig Bridge
+ Built: 2026-09-14 20:35:21 UTC (build #5, e6552c2-dirty)
+========================================
+...
+[main] Ready — mode: STA  ip: 192.168.1.42  http://192.168.1.42/
+```
+
+`build #N` is the repo's commit count at build time (`git rev-list --count HEAD`), so it
+climbs with every commit regardless of branch; `-dirty` means uncommitted changes were
+present when you built (as they were above — this is expected while developing).
+
 ## WiFi setup
 
 Two ways to give the bridge WiFi credentials, and they compose:

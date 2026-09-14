@@ -168,6 +168,13 @@ const char *wifi_config_ap_ssid(void) {
     return ap_ssid;
 }
 
+const char *wifi_config_ip_str(void) {
+    if (!netif_default) {
+        return "0.0.0.0";
+    }
+    return ip4addr_ntoa(netif_ip4_addr(netif_default));
+}
+
 static bool pending_apply;
 static wifi_credentials_t pending_creds;
 static absolute_time_t pending_deadline;

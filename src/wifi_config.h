@@ -42,4 +42,8 @@ wifi_mode_t wifi_config_bringup(void);
 wifi_mode_t wifi_config_current_mode(void);
 const char *wifi_config_ap_ssid(void); // valid once bringup() has run in AP mode
 
+// Current IP as a string (STA address, or the fixed 192.168.4.1 in AP mode). Valid once
+// bringup() has returned; "0.0.0.0" before that.
+const char *wifi_config_ip_str(void);
+
 #endif
