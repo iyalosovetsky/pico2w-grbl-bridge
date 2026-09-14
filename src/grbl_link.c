@@ -24,6 +24,11 @@ static absolute_time_t waiting_deadline;
 static absolute_time_t next_poll;
 static absolute_time_t next_no_device_reminder;
 static char last_status_word[GRBL_STATUS_LEN]; // for the filtered log's "Old -> New" lines
+// Set whenever a command is actually sent (queued G-code line, or a user-triggered
+// realtime hold/resume/reset); makes the *next* status report show up in the filtered
+// log even if the status word itself didn't change, as a "here's where things stand
+// right after that" confirmation.
+static bool force_next_status_log;
 
 static int parse_csv_floats(char *s, float *out, int max) {
     int n = 0;
@@ -128,13 +133,20 @@ static void parse_status_report(const char *raw) {
     }
 
     // Filtered log: skip the (frequent) raw status report itself, but note an actual
-    // state transition (Idle -> Run, Run/Jog -> Idle, ...) since that's the part worth
-    // seeing without the full firehose.
-    if (last_status_word[0] && strcmp(last_status_word, ns.status) != 0) {
-        char change[GRBL_STATUS_LEN * 2 + 8];
-        snprintf(change, sizeof(change), "%s -> %s", last_status_word, ns.status);
-        shared_state_filtered_push(change);
+    // state transition (Idle -> Run, Run/Jog -> Idle, ...) — or, even without one, the
+    // first status reading right after a user command, as a "here's where things stand
+    // now" confirmation — since that's the part worth seeing without the full firehose.
+    bool changed = last_status_word[0] && strcmp(last_status_word, ns.status) != 0;
+    if (changed || force_next_status_log) {
+        char line[GRBL_STATUS_LEN * 2 + 12];
+        if (changed) {
+            snprintf(line, sizeof(line), "%s -> %s", last_status_word, ns.status);
+        } else {
+            snprintf(line, sizeof(line), "status: %s", ns.status);
+        }
+        shared_state_filtered_push(line);
     }
+    force_next_status_log = false;
     strncpy(last_status_word, ns.status, sizeof(last_status_word) - 1);
     last_status_word[sizeof(last_status_word) - 1] = '\0';
 
@@ -209,6 +221,7 @@ void grbl_link_core1_main(void) {
             const char *label = rt == '!' ? "> ! (hold)" : rt == '~' ? "> ~ (resume)" : "> ^X (reset)";
             shared_state_console_push(label);
             shared_state_filtered_push(label);
+            force_next_status_log = true;
         }
 
         if (mounted && time_reached(next_poll)) {
@@ -234,6 +247,7 @@ void grbl_link_core1_main(void) {
                     snprintf(tagged, sizeof(tagged), "> %s", line);
                     shared_state_console_push(tagged);
                     shared_state_filtered_push(tagged);
+                    force_next_status_log = true;
                     waiting_ok = true;
                     waiting_deadline = make_timeout_time_ms(LINE_TIMEOUT_MS);
                 }
