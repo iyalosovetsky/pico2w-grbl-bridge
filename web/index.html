@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scanner Rig Bridge</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f5f5; --fg: #1a1a1a; --card: #ffffff; --border: #ddd;
+    --accent: #2563eb; --ok: #16a34a; --warn: #d97706; --err: #dc2626; --muted: #666;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16181c; --fg: #eaeaea; --card: #1f2227; --border: #33363c; --muted: #9aa0a6; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 18px; margin: 0 0 12px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 8px; }
+  .status-pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-weight: 600; color: #fff; background: var(--muted); }
+  .status-idle { background: var(--ok); }
+  .status-run { background: var(--accent); }
+  .status-hold, .status-door { background: var(--warn); }
+  .status-alarm { background: var(--err); }
+  .conn-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--err); }
+  .conn-dot.ok { background: var(--ok); }
+  table.pos { width: 100%; border-collapse: collapse; }
+  table.pos td { padding: 3px 4px; font-variant-numeric: tabular-nums; }
+  table.pos td:first-child { color: var(--muted); width: 2em; }
+  textarea { width: 100%; min-height: 80px; font-family: ui-monospace, monospace; font-size: 13px;
+    background: var(--bg); color: var(--fg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; resize: vertical; }
+  .btnrow { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  button { border: 1px solid var(--border); background: var(--card); color: var(--fg); padding: 7px 14px;
+    border-radius: 6px; cursor: pointer; font-size: 13px; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.warn { background: var(--warn); border-color: var(--warn); color: #fff; }
+  button.err { background: var(--err); border-color: var(--err); color: #fff; }
+  button:active { transform: translateY(1px); }
+  #console { background: #0d0f12; color: #d7dbe0; border-radius: 8px; padding: 8px 10px; height: 220px;
+    overflow-y: auto; font-family: ui-monospace, monospace; font-size: 12.5px; white-space: pre-wrap; word-break: break-all; }
+  #console div.err { color: #ff8383; }
+  #console div.alarm { color: #ffb84d; }
+  .alarm-banner { background: var(--err); color: #fff; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; display: none; }
+  .foot { color: var(--muted); font-size: 12px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Scanner Rig — grblHAL bridge</h1>
+  <div id="alarmBanner" class="alarm-banner"></div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Стан</h2>
+      <p><span id="connDot" class="conn-dot"></span><span id="connText">—</span>
+         &nbsp; <span id="statusPill" class="status-pill">—</span></p>
+      <table class="pos" id="posTable"></table>
+      <p>Feed: <b id="feedVal">0</b> &nbsp; Speed: <b id="speedVal">0</b></p>
+      <div class="btnrow">
+        <button onclick="rt('hold')">⏸ Hold (!)</button>
+        <button onclick="rt('resume')">▶ Resume (~)</button>
+        <button class="err" onclick="rt('reset')">⟲ Soft Reset</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Надіслати G-code</h2>
+      <textarea id="gcodeInput" placeholder="?&#10;G91&#10;G1 X1 F500&#10;M104 Q90"></textarea>
+      <div class="btnrow">
+        <button class="primary" onclick="sendGcode()">Надіслати</button>
+        <button onclick="quickSend('?')">?</button>
+        <button onclick="quickSend('$$')">$$</button>
+        <button onclick="quickSend('$H')">$H</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <h2>Консоль</h2>
+    <div id="console"></div>
+  </div>
+
+  <p class="foot">WiFi: <span id="wifiMode">—</span></p>
+</div>
+
+<script>
+const AXIS_LETTERS = ['X','Y','Z','A','B','C'];
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(path + ': ' + r.status);
+  return r;
+}
+
+function fmt(n) { return Number(n).toFixed(3); }
+
+async function refreshStatus() {
+  try {
+    const r = await api('/api/status');
+    const s = await r.json();
+
+    document.getElementById('connDot').className = 'conn-dot' + (s.connected ? ' ok' : '');
+    document.getElementById('connText').textContent = s.connected ? "з'єднано" : 'немає зв\'язку з grblHAL';
+
+    const pill = document.getElementById('statusPill');
+    pill.textContent = s.status || '—';
+    pill.className = 'status-pill status-' + String(s.status || '').toLowerCase();
+
+    const t = document.getElementById('posTable');
+    let rows = '';
+    for (let i = 0; i < (s.naxes || 0); i++) {
+      const letter = AXIS_LETTERS[i] || ('#' + i);
+      const w = s.has_wpos ? fmt(s.wpos[i]) : '—';
+      const m = fmt(s.mpos[i]);
+      rows += `<tr><td>${letter}</td><td>W ${w}</td><td>M ${m}</td></tr>`;
+    }
+    t.innerHTML = rows || '<tr><td colspan="3">—</td></tr>';
+
+    document.getElementById('feedVal').textContent = s.feed;
+    document.getElementById('speedVal').textContent = s.speed;
+    document.getElementById('wifiMode').textContent = s.wifi_mode === 'ap'
+      ? `режим точки доступу (${s.ap_ssid || ''})` : 'підключено до мережі';
+
+    const banner = document.getElementById('alarmBanner');
+    if (s.alarm) { banner.style.display = 'block'; banner.textContent = s.alarm; }
+    else { banner.style.display = 'none'; }
+
+    const c = document.getElementById('console');
+    const stick = c.scrollTop + c.clientHeight >= c.scrollHeight - 4;
+    c.innerHTML = (s.console || []).map(line => {
+      const cls = line.startsWith('ALARM') ? 'alarm' : line.startsWith('error') ? 'err' : '';
+      return `<div class="${cls}">${escapeHtml(line)}</div>`;
+    }).join('');
+    if (stick) c.scrollTop = c.scrollHeight;
+  } catch (e) {
+    document.getElementById('connText').textContent = 'сторінка не бачить бридж: ' + e.message;
+  }
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+
+async function sendGcode() {
+  const ta = document.getElementById('gcodeInput');
+  const text = ta.value.trim();
+  if (!text) return;
+  await api('/api/gcode', { method: 'POST', body: text });
+  ta.value = '';
+  refreshStatus();
+}
+
+async function quickSend(line) {
+  await api('/api/gcode', { method: 'POST', body: line });
+  refreshStatus();
+}
+
+async function rt(which) {
+  await api('/api/' + which, { method: 'POST' });
+  refreshStatus();
+}
+
+document.getElementById('gcodeInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendGcode();
+});
+
+refreshStatus();
+setInterval(refreshStatus, 500);
+</script>
+</body>
+</html>
