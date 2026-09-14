@@ -105,9 +105,15 @@
 const AXIS_LETTERS = ['X','Y','Z','A','B','C'];
 
 async function api(path, opts) {
-  const r = await fetch(path, opts);
-  if (!r.ok) throw new Error(path + ': ' + r.status);
-  return r;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
+  try {
+    const r = await fetch(path, { ...opts, signal: controller.signal });
+    if (!r.ok) throw new Error(path + ': ' + r.status);
+    return r;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function fmt(n) { return Number(n).toFixed(3); }
@@ -140,21 +146,42 @@ function updateConsoleControls() {
   document.getElementById('toggleConsoleBtn').textContent = consoleVisible ? 'Сховати' : 'Показати';
 }
 
+// The board's own last_status_ms only advances while core1 (the USB/grblHAL link) is
+// actually alive and parsing reports — if it stalls (bad cable, wedged USB state), the
+// HTTP server can keep answering with a frozen "connected: true" forever otherwise.
+// Track wall-clock time since last_status_ms last *changed*, not since we last polled.
+const STALE_MS = 3000;
+let lastSeenStatusMs = null;
+let lastFreshWallClock = Date.now();
+
+function hasActiveSelectionIn(el) {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return false;
+  return el.contains(sel.anchorNode) && el.contains(sel.focusNode);
+}
+
 async function refreshStatus() {
   try {
     const r = await api('/api/status');
     const s = await r.json();
 
-    document.getElementById('connDot').className = 'conn-dot' + (s.connected ? ' ok' : '');
-    document.getElementById('connText').textContent = s.connected ? "з'єднано" : 'немає зв\'язку з grblHAL';
+    if (s.last_status_ms !== lastSeenStatusMs) {
+      lastSeenStatusMs = s.last_status_ms;
+      lastFreshWallClock = Date.now();
+    }
+    const stale = s.connected && (Date.now() - lastFreshWallClock) > STALE_MS;
+
+    document.getElementById('connDot').className = 'conn-dot' + (s.connected && !stale ? ' ok' : '');
+    document.getElementById('connText').textContent = stale ? "з'єднання втрачене"
+      : s.connected ? "з'єднано" : 'немає зв\'язку з grblHAL';
 
     const pill = document.getElementById('statusPill');
-    pill.textContent = s.status || '—';
-    pill.className = 'status-pill status-' + String(s.status || '').toLowerCase();
+    pill.textContent = stale ? '' : (s.status || '—');
+    pill.className = 'status-pill' + (stale ? '' : ' status-' + String(s.status || '').toLowerCase());
 
     const t = document.getElementById('posTable');
     let rows = '';
-    for (let i = 0; i < (s.naxes || 0); i++) {
+    for (let i = 0; i < (stale ? 0 : (s.naxes || 0)); i++) {
       const letter = AXIS_LETTERS[i] || ('#' + i);
       const w = s.has_wpos ? fmt(s.wpos[i]) : '—';
       const m = fmt(s.mpos[i]);
@@ -164,16 +191,16 @@ async function refreshStatus() {
 
     const rig = document.getElementById('rigTable');
     let rigRows = '';
-    if (s.table !== null && s.table !== undefined) {
+    if (!stale && s.table !== null && s.table !== undefined) {
       rigRows += `<tr><td>Стіл</td><td>${fmt2(s.table)}°</td><td>всього ${fmt2(s.table_abs)}°</td></tr>`;
     }
-    if (s.servo !== null && s.servo !== undefined) {
+    if (!stale && s.servo !== null && s.servo !== undefined) {
       rigRows += `<tr><td>Сервотілт</td><td>${fmt2(s.servo)}°</td><td></td></tr>`;
     }
     rig.innerHTML = rigRows;
 
-    document.getElementById('feedVal').textContent = s.feed;
-    document.getElementById('speedVal').textContent = s.speed;
+    document.getElementById('feedVal').textContent = stale ? '—' : s.feed;
+    document.getElementById('speedVal').textContent = stale ? '—' : s.speed;
     document.getElementById('wifiMode').textContent = s.wifi_mode === 'ap'
       ? `режим точки доступу (${s.ap_ssid || ''})` : 'підключено до мережі';
 
@@ -181,20 +208,29 @@ async function refreshStatus() {
     if (s.alarm) { banner.style.display = 'block'; banner.textContent = s.alarm; }
     else { banner.style.display = 'none'; }
 
+    // Don't yank the console's DOM out from under an in-progress text selection —
+    // replacing innerHTML while the user is selecting (or has just finished selecting,
+    // about to copy) silently clears it. Just skip this tick; the next one picks up
+    // once the selection is gone.
     const c = document.getElementById('console');
-    const stick = c.scrollTop + c.clientHeight >= c.scrollHeight - 4;
-    const lines = (consoleMode === 'full' ? s.console : s.console_filtered) || [];
-    c.innerHTML = lines.map(line => {
-      const cls = line.startsWith('ALARM') ? 'alarm'
-        : line.startsWith('error') ? 'err'
-        : line.startsWith('>') ? 'sent'
-        : line.startsWith('<') ? 'status'
-        : '';
-      return `<div class="${cls}">${escapeHtml(line)}</div>`;
-    }).join('');
-    if (stick) c.scrollTop = c.scrollHeight;
+    if (!hasActiveSelectionIn(c)) {
+      const stick = c.scrollTop + c.clientHeight >= c.scrollHeight - 4;
+      const lines = (consoleMode === 'full' ? s.console : s.console_filtered) || [];
+      c.innerHTML = lines.map(line => {
+        const cls = line.startsWith('ALARM') ? 'alarm'
+          : line.startsWith('error') ? 'err'
+          : line.startsWith('>') ? 'sent'
+          : line.startsWith('<') ? 'status'
+          : '';
+        return `<div class="${cls}">${escapeHtml(line)}</div>`;
+      }).join('');
+      if (stick) c.scrollTop = c.scrollHeight;
+    }
   } catch (e) {
     document.getElementById('connText').textContent = 'сторінка не бачить бридж: ' + e.message;
+    document.getElementById('connDot').className = 'conn-dot';
+    document.getElementById('statusPill').textContent = '';
+    document.getElementById('statusPill').className = 'status-pill';
   }
 }
 
@@ -222,7 +258,10 @@ async function rt(which) {
 }
 
 document.getElementById('gcodeInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendGcode();
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault(); // otherwise a newline gets inserted right before we clear it
+    sendGcode();
+  }
 });
 
 updateConsoleControls();

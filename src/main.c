@@ -5,6 +5,7 @@
 // CMakeLists.txt's pico_enable_stdio_uart. They only talk through shared_state.c.
 #include <stdio.h>
 
+#include "hardware/watchdog.h"
 #include "pico/cyw43_arch.h"
 #include "pico/multicore.h"
 #include "pico/stdlib.h"
@@ -17,6 +18,13 @@
 #include "shared_state.h"
 #include "wifi_config.h"
 
+// RP2040's hardware watchdog maxes out at ~8388ms (RP2350: ~16777ms) — 8000 is safe on
+// both boards this firmware targets.
+#define WATCHDOG_TIMEOUT_MS 8000
+// If core1 hasn't ticked in this long, treat it as stalled (wedged USB/TinyUSB state
+// from e.g. a bad cable) and stop feeding the watchdog on its behalf.
+#define CORE1_STALL_TIMEOUT_MS 3000
+
 static void print_banner(void) {
     printf("\n========================================\n");
     printf(" Scanner Rig Bridge\n");
@@ -28,6 +36,10 @@ static void print_banner(void) {
 int main(void) {
     stdio_init_all();
     print_banner();
+
+    if (watchdog_enable_caused_reboot()) {
+        printf("[main] recovered from a watchdog reset (core1/USB link had stalled)\n");
+    }
 
     shared_state_init();
 
@@ -52,10 +64,39 @@ int main(void) {
            wifi_config_current_mode() == WIFI_MODE_STA ? "STA" : "AP",
            wifi_config_ip_str(), wifi_config_ip_str());
 
+    // Armed here, not earlier: wifi_config_bringup() above can legitimately block for
+    // up to 15s trying to join a network, far longer than the watchdog's hardware max.
+    watchdog_enable(WATCHDOG_TIMEOUT_MS, true);
+
+    uint32_t last_core1_tick = shared_state_core1_tick_count();
+    absolute_time_t last_core1_progress = get_absolute_time();
+    bool core1_flagged_stalled = false;
+
     while (true) {
         cyw43_arch_poll();
         wifi_config_poll_pending();
         led_task();
+
+        uint32_t tick = shared_state_core1_tick_count();
+        if (tick != last_core1_tick) {
+            last_core1_tick = tick;
+            last_core1_progress = get_absolute_time();
+            core1_flagged_stalled = false;
+        }
+
+        if (absolute_time_diff_us(last_core1_progress, get_absolute_time()) <
+            (int64_t) CORE1_STALL_TIMEOUT_MS * 1000) {
+            // Both cores are making progress — safe to feed. If core0 itself wedges
+            // somewhere, this call simply stops happening and the watchdog resets the
+            // board on its own, same as the deliberate core1-stall case below.
+            watchdog_update();
+        } else if (!core1_flagged_stalled) {
+            core1_flagged_stalled = true;
+            shared_state_set_connected(false);
+            printf("[main] core1 (USB/grblHAL link) appears stalled — no longer feeding"
+                   " the watchdog, expecting a reset\n");
+        }
+
         cyw43_arch_wait_for_work_until(make_timeout_time_ms(20));
     }
 }

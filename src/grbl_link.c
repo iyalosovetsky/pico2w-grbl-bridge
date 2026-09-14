@@ -215,6 +215,8 @@ void grbl_link_core1_main(void) {
     next_no_device_reminder = make_timeout_time_ms(NO_DEVICE_REMINDER_MS);
 
     while (true) {
+        shared_state_core1_tick(); // watchdog liveness signal (main.c) — every pass, no exceptions
+
         usb_host_cdc_task();
 
         bool mounted = usb_host_cdc_is_mounted();

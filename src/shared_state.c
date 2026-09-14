@@ -201,3 +201,13 @@ bool shared_state_take_led_pulse(void) {
     mutex_exit(&led_mutex);
     return pending;
 }
+
+static volatile uint32_t core1_tick_count;
+
+void shared_state_core1_tick(void) {
+    core1_tick_count++;
+}
+
+uint32_t shared_state_core1_tick_count(void) {
+    return core1_tick_count;
+}

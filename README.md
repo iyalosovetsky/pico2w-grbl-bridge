@@ -121,6 +121,25 @@ Without a console attached, the onboard LED (`src/led.c`) is the only feedback t
 | Three short flashes, once | Just got an IP (STA connected, or its own AP came up) |
 | Off, brief pulse every 20th line | Normal operation — pulses once per 20 grblHAL status reports received (a "still talking to grblHAL" heartbeat; `LED_HEARTBEAT_EVERY_N_LINES` in `shared_state.h`) |
 
+### Recovering from a stalled USB link
+
+A flaky cable can wedge core1's USB/TinyUSB state (seen in practice) without crashing
+outright — `usb_host_cdc_task()` keeps returning, but grblHAL is never heard from again.
+`main.c` arms the hardware watchdog (`hardware_watchdog`, ~8s) once WiFi is up, and core1
+bumps a plain counter every pass of its own loop regardless of whether grblHAL responds
+(`shared_state_core1_tick()`); core0 only calls `watchdog_update()` while that counter is
+still advancing. If it stalls for 3s, core0 stops feeding the watchdog on purpose and the
+chip resets itself a few seconds later — the same clean re-init as a power cycle, since
+that's the most reliable way to recover a wedged USB peripheral. Also covers a core0-only
+hang for free: if core0 itself wedges, `watchdog_update()` simply stops being called.
+`watchdog_enable_caused_reboot()` logs whether the last boot was one of these recoveries.
+
+The web page has its own independent staleness check for the same failure, since a stall
+this brief might not even reach the watchdog's timeout, or the HTTP server itself could
+be the thing that's stuck: if the board's own `last_status_ms` hasn't advanced in 3s, the
+page shows "з'єднання втрачене" and blanks the status/position fields instead of a
+frozen "Idle" that looks fine but isn't (`STALE_MS` in `web/index.html`).
+
 ## WiFi setup
 
 Two ways to give the bridge WiFi credentials, and they compose:
@@ -150,7 +169,7 @@ All bodies are plain text (no JSON payloads to build by hand), responses are JSO
 | Method | Path | Body | Notes |
 |---|---|---|---|
 | GET | `/` | — | The web UI |
-| GET | `/api/status` | — | `{connected, status, naxes, mpos[], has_wpos, wpos[], feed, speed, alarm, table, table_abs, servo, wifi_mode, ap_ssid, console[], console_filtered[]}` |
+| GET | `/api/status` | — | `{connected, status, naxes, mpos[], has_wpos, wpos[], feed, speed, alarm, table, table_abs, servo, wifi_mode, ap_ssid, last_status_ms, console[], console_filtered[]}` |
 | POST | `/api/gcode` | one command per line | Queued and sent to grblHAL one line at a time; `{total, queued, rejected}` |
 | POST | `/api/hold` | — | Real-time feed hold (`!`) |
 | POST | `/api/resume` | — | Real-time cycle resume (`~`) |

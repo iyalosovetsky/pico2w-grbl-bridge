@@ -82,4 +82,13 @@ bool shared_state_take_realtime(char *out);      // core1 side: pop one pending 
 void shared_state_notify_status_line(void);
 bool shared_state_take_led_pulse(void); // core0 side: true once, then clears
 
+// Core1 liveness counter for the watchdog (main.c): core1 bumps this every pass of its
+// main loop, unconditionally, regardless of whether grblHAL itself is responding — a
+// USB/driver-level lockup (bad cable, wedged TinyUSB state) stops this counter even
+// though grblHAL was never going to reply anyway, which is exactly the case a "waiting
+// for ok" timeout doesn't catch. No mutex: a plain monotonic counter only ever compared
+// for "did this change", where a torn read is harmless.
+void shared_state_core1_tick(void);
+uint32_t shared_state_core1_tick_count(void);
+
 #endif

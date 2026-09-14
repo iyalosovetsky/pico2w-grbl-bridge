@@ -74,8 +74,10 @@ static void handle_status(char *out, size_t cap, http_response_t *resp) {
     }
 
     wifi_mode_t mode = wifi_config_current_mode();
-    pos += snprintf(out + pos, cap - pos, ",\"wifi_mode\":\"%s\",\"ap_ssid\":\"%s\",\"console\":[",
-                     mode == WIFI_MODE_AP ? "ap" : "sta", wifi_config_ap_ssid());
+    pos += snprintf(out + pos, cap - pos,
+                     ",\"wifi_mode\":\"%s\",\"ap_ssid\":\"%s\",\"last_status_ms\":%u,\"console\":[",
+                     mode == WIFI_MODE_AP ? "ap" : "sta", wifi_config_ap_ssid(),
+                     (unsigned) st.last_status_ms);
     for (size_t i = 0; i < n_console; i++) {
         pos += snprintf(out + pos, cap - pos, "%s\"", i ? "," : "");
         pos = json_escape_append(out, cap, pos, console[i]);
