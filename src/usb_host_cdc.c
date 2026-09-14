@@ -3,9 +3,21 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "pio_usb.h"
 #include "tusb.h"
 
 #define LINE_BUF_LEN 256
+
+// D+ pin for the PIO-USB host port; D- is D+ + 1 (PIO_USB_PINOUT_DPDM, the library
+// default). Wire a full USB-A host connector here (D+, D-, 5V, GND) to the SKR-Pico's
+// USB port — see PINOUT.md. Deliberately NOT the native USB port, which stays free for
+// flashing/debug (stdio-over-CDC, driven by main.c's tud_init/tud_task).
+#define PIO_USB_HOST_DP_PIN 0
+
+// Force the PIO-USB host onto PIO1 (both its TX and RX state machines), away from
+// whatever PIO block the CYW43 WiFi driver's SPI-over-PIO claims dynamically at
+// cyw43_arch_init() — without this both would default to PIO0 and could collide.
+#define PIO_USB_HOST_PIO_INDEX 1
 
 static uint8_t mounted_idx = 0xFF; // 0xFF = none mounted
 static char line_buf[LINE_BUF_LEN];
@@ -15,6 +27,11 @@ static usb_host_cdc_line_cb_t line_cb;
 static usb_host_cdc_mount_cb_t mount_cb;
 
 void usb_host_cdc_init(void) {
+    pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
+    pio_cfg.pin_dp = PIO_USB_HOST_DP_PIN;
+    pio_cfg.pio_tx_num = PIO_USB_HOST_PIO_INDEX;
+    pio_cfg.pio_rx_num = PIO_USB_HOST_PIO_INDEX;
+    tuh_configure(BOARD_TUH_RHPORT, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
     tuh_init(BOARD_TUH_RHPORT);
 }
 

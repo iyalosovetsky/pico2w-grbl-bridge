@@ -4,24 +4,36 @@ WiFi/REST bridge for the [scanner turntable rig](https://github.com/iyalosovetsk
 running a [custom grblHAL](https://github.com/iyalosovetsky/RP2040_pico2w) on a BTT SKR Pico.
 
 The SKR Pico has no WiFi and its grblHAL console is only reachable over USB CDC. This
-firmware runs on a separate **Raspberry Pi Pico 2 W**, which:
+firmware runs on a separate **Raspberry Pi Pico W or Pico 2 W** (RP2040 or RP2350 — same
+source tree, see Building), which:
 
-1. Acts as a **USB host** and plugs into the SKR Pico's USB port, talking to grblHAL's
-   console as a CDC-ACM client (send G-code lines, get `ok`/`error`/status back).
+1. Acts as a **USB host** on its own PIO-driven USB port (separate GPIO pins, *not* the
+   board's native USB connector) and plugs into the SKR Pico's USB port, talking to
+   grblHAL's console as a CDC-ACM client (send G-code lines, get `ok`/`error`/status back).
 2. Serves a **web page** and a small **REST API** over WiFi to send G-code and see the
    machine's current state (status, MPos/WPos, feed/speed, a live console log).
+
+The board's *native* USB port is deliberately left alone: it's still what you use to
+flash the board and to watch `printf` debug output over a normal serial terminal — the
+grblHAL link runs entirely over a second, PIO-emulated USB port instead
+([Pico-PIO-USB](https://github.com/sekigon-gonnoc/Pico-PIO-USB), vendored as a submodule).
 
 ## Architecture
 
 - **Core 1** owns the USB-host link exclusively (`src/usb_host_cdc.c`, `src/grbl_link.c`):
-  pumps TinyUSB's host stack, sends queued G-code lines one at a time with the normal
-  `ok`/`error:` handshake, sends real-time bytes (`?`/`!`/`~`/soft-reset) out of band, and
-  polls `?` every 250 ms to keep the machine state fresh.
-- **Core 0** owns WiFi and the HTTP server (`src/wifi_config.c`, `src/http_server.c`,
-  `src/api_handlers.c`): a minimal non-blocking HTTP/1.0 server on lwIP's raw TCP API,
-  no RTOS, no sockets layer.
+  pumps TinyUSB's host stack over Pico-PIO-USB, sends queued G-code lines one at a time
+  with the normal `ok`/`error:` handshake, sends real-time bytes (`?`/`!`/`~`/soft-reset)
+  out of band, and polls `?` every 250 ms to keep the machine state fresh.
+- **Core 0** owns WiFi, the HTTP server, and the native USB device stack (stdio-over-CDC
+  debug console): `src/wifi_config.c`, `src/http_server.c`, `src/api_handlers.c` — a
+  minimal non-blocking HTTP/1.0 server on lwIP's raw TCP API, no RTOS, no sockets layer.
 - The two cores only talk through `src/shared_state.c` (mutex-protected machine state,
   console log ring buffer, outbound G-code queue, real-time request flags).
+- TinyUSB runs in both roles at once — device (native controller, rhport 0, stdio) and
+  host (PIO-USB, rhport 1, grblHAL) — the same pattern as Pico-PIO-USB's own
+  `host_hid_to_device_cdc` example. The PIO-USB host is explicitly pinned to PIO1
+  (`usb_host_cdc.c`) so it can never collide with the PIO block the CYW43 WiFi driver
+  claims dynamically for its SPI-over-PIO link to the wireless chip.
 
 Axis count is **not** hardcoded to X/Y/Z/A: in this custom grblHAL build the turntable
 (`M102`-`M104`) and the ST3215 tilt servo (`M101`) are driven independently of grbl's
@@ -32,39 +44,51 @@ M101-M104 as plain G-code text like everything else sent through `/api/gcode`.
 
 ## Building
 
-Requires `arm-none-eabi-gcc`, `cmake`, and a checked-out `pico-sdk` (2.1+, RP2350/Pico 2 W
-support) with submodules `lib/tinyusb`, `lib/lwip`, `lib/cyw43-driver` initialized.
+Requires `arm-none-eabi-gcc`, `cmake`, `python3`, and a checked-out `pico-sdk` (2.1+, with
+RP2350/Pico 2 W board support) with submodules `lib/tinyusb`, `lib/lwip`,
+`lib/cyw43-driver` initialized. Clone this repo with `--recurse-submodules` (or
+`git submodule update --init`) to pull in the vendored Pico-PIO-USB library.
 
 ```bash
+git clone --recurse-submodules <this repo>
 mkdir build && cd build
-cmake -DPICO_SDK_PATH=/path/to/pico-sdk -DPICO_BOARD=pico2_w ..
+cmake -DPICO_SDK_PATH=/path/to/pico-sdk -DPICO_BOARD=pico2_w ..   # or -DPICO_BOARD=pico_w for a plain Pico W (RP2040)
 make -j$(nproc)
 ```
 
-Produces `build/bridge.uf2`. Flash it by holding BOOTSEL while plugging the Pico 2 W into
-your PC (a *second* USB connection, just for flashing — see wiring below), then copy
-`bridge.uf2` onto the `RPI-RP2` drive that appears.
+Same source tree, same CMakeLists.txt — `PICO_BOARD` is the only thing that changes
+between an RP2040 Pico W and an RP2350 Pico 2 W. Produces `build/bridge.uf2`. Flash it by
+holding BOOTSEL while plugging the board's *native* USB port into your PC, then copy
+`bridge.uf2` onto the `RPI-RP2` drive that appears — the same port stays usable for that
+and for `printf` debugging afterwards (it enumerates as a normal CDC serial device).
 
 ## Wiring
 
-The Pico 2 W's own USB connector is used in **host** role to talk to the SKR Pico, so it
-needs a USB-A **host/OTG adapter** on that port (same approach already proven working on
-this bench for USB-host HID in `pico_read_usb_keyboard`). Two things to get right:
+The grblHAL link does **not** use the board's native USB connector — it uses a second,
+PIO-emulated USB port on separate GPIO pins (`PIO_USB_HOST_DP_PIN` in `usb_host_cdc.c`,
+default **GP0 = D+, GP1 = D-**), so the native port is free for flashing/debug. Build a
+USB-A host connector wired to:
 
-1. **VBUS power.** A host port normally *supplies* 5V to the device; the Pico's own USB
-   connector doesn't do that by default (VBUS is wired as an input). If the SKR Pico
-   doesn't enumerate, check that your OTG adapter/cable injects 5V onto VBUS (a powered
-   USB hub between the two boards is the simplest fix if a bare OTG adapter doesn't work).
-   The SKR Pico is normally powered independently from its 12/24V input, so this is only
-   about USB enumeration, not board power.
-2. **Debug console.** With the native USB port in host role, `printf` output comes out
-   UART0 instead (GPIO0 = TX, GPIO1 = RX, 115200 8N1) — wire a USB-serial adapter there
-   to watch boot/connection logs, or check `[link]`/`[wifi]`/`[usb]` lines from a UART
-   terminal during bring-up.
+| Signal | Pin |
+|---|---|
+| D+ | GP0 (configurable) |
+| D- | GP1 (D+ pin + 1, fixed by the library's default pinout) |
+| VBUS (5V) | An external 5V source, or the board's own VSYS/5V pin |
+| GND | GND |
+
+22 Ω series resistors on D+/D- are recommended (standard USB signal integrity practice,
+per Pico-PIO-USB's own docs). Unlike a native-port OTG adapter, **you provide VBUS
+yourself here** — wire real 5V to it, since the SKR Pico's USB side needs to see 5V to
+enumerate at all (it's independently powered from its 12/24V input otherwise, this is
+only about USB enumeration). This whole port is a fresh breakout — the prior VBUS-via-
+native-port headache from an earlier version of this design doesn't apply anymore, since
+D+/D-/5V/GND are now just GPIO/power pins you wire explicitly rather than fighting the
+native connector's fixed, input-only VBUS pin.
 
 Bring-up order to sanity-check the hardware before trusting the web UI: flash, open a
-UART terminal, plug in the SKR Pico (running grblHAL) via the OTG adapter, and look for
-`[usb] CDC mounted` — if that never appears, it's the VBUS issue above, not a software bug.
+serial terminal on the board's native USB CDC port, plug in the SKR Pico (running
+grblHAL) via the PIO-USB host wiring above, and look for `[usb] CDC mounted` — if that
+never appears, recheck the VBUS wiring above before suspecting a software bug.
 
 ## WiFi setup
 
@@ -98,5 +122,6 @@ curl http://<bridge-ip>/api/status
 
 ## Status
 
-Builds and links cleanly (`arm-none-eabi-gcc` 14.2, pico-sdk 2.3.0). Not yet flashed to
-real hardware — the USB-host VBUS question above is the main open risk to verify first.
+Builds and links cleanly for both `pico2_w` (RP2350) and `pico_w` (RP2040) targets
+(`arm-none-eabi-gcc` 14.2, pico-sdk 2.3.0). Not yet flashed to real hardware — the VBUS
+wiring above is the main open item to verify first.
