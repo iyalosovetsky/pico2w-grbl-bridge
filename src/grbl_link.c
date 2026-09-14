@@ -177,7 +177,7 @@ void grbl_link_core1_main(void) {
         bool mounted = usb_host_cdc_is_mounted();
 
         if (!mounted && time_reached(next_no_device_reminder)) {
-            printf("[usb] still no device on the PIO-USB host port — check VBUS wiring (see README)\r\n");
+            printf("[usb] still no device on the USB host port — check the OTG adapter/VBUS wiring\r\n");
             next_no_device_reminder = make_timeout_time_ms(NO_DEVICE_REMINDER_MS);
         }
 

@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# Configure, build, and (optionally) flash pico2w-grbl-bridge.
+# Configure, build, and (optionally) flash pico2w-grbl-bridge (native-usb-host branch:
+# grblHAL is reached over the board's own built-in micro-USB port via a USB-A OTG
+# adapter, instead of the separate PIO-USB port on custom pins used on main. Debug
+# output goes out UART0 — see README for wiring).
 #
 # Examples:
-#   tools/build.sh                                    # build for pico2_w (RP2350), default pins
+#   tools/build.sh                                    # build for pico2_w (RP2350)
 #   tools/build.sh --board pico_w                      # build for a plain Pico W (RP2040)
-#   tools/build.sh --dp-pin 16 --pio 0 --flash         # custom PIO-USB pins, then flash
 #   tools/build.sh --wifi-ssid Home --wifi-password xx # bake in a default WiFi network
 #   tools/build.sh -a                                  # clean + build + flash in one go
 #
 # Flashing uses `picotool`, so the board must already be in BOOTSEL mode (hold BOOTSEL
-# while plugging in its native USB port) — this firmware doesn't expose picotool's
-# USB reset interface, so it can't be rebooted into BOOTSEL remotely.
+# while plugging its native USB port into your PC) — this firmware doesn't expose
+# picotool's USB reset interface, so it can't be rebooted into BOOTSEL remotely.
 #
 # --wifi-password on the command line lands in your shell history and is visible to
 # other users on this machine via `ps`. Prefer exporting WIFI_SSID/WIFI_PASSWORD as
@@ -23,8 +25,6 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 BOARD="pico2_w"
-DP_PIN=0
-PIO_INDEX=1
 SDK_PATH="${PICO_SDK_PATH:-}"
 WIFI_SSID_ARG="${WIFI_SSID:-}"
 WIFI_PASSWORD_ARG="${WIFI_PASSWORD:-}"
@@ -34,18 +34,17 @@ FLASH=0
 
 usage() {
     cat <<EOF
-Configure, build, and (optionally) flash pico2w-grbl-bridge.
+Configure, build, and (optionally) flash pico2w-grbl-bridge (native-usb-host branch).
 
 Examples:
-  tools/build.sh                                    # build for pico2_w (RP2350), default pins
+  tools/build.sh                                    # build for pico2_w (RP2350)
   tools/build.sh --board pico_w                      # build for a plain Pico W (RP2040)
-  tools/build.sh --dp-pin 16 --pio 0 --flash         # custom PIO-USB pins, then flash
   tools/build.sh --wifi-ssid Home --wifi-password xx # bake in a default WiFi network
   tools/build.sh -a                                  # clean + build + flash in one go
 
 Flashing uses picotool, so the board must already be in BOOTSEL mode (hold BOOTSEL
-while plugging in its native USB port) — this firmware doesn't expose picotool's
-USB reset interface, so it can't be rebooted into BOOTSEL remotely.
+while plugging its native USB port into your PC) — this firmware doesn't expose
+picotool's USB reset interface, so it can't be rebooted into BOOTSEL remotely.
 
 --wifi-password on the command line lands in your shell history and is visible to
 other users on this machine via ps. Prefer exporting WIFI_SSID/WIFI_PASSWORD as
@@ -56,11 +55,6 @@ credentials are saved to flash and take priority from then on.
 Options:
   --board <pico_w|pico2_w>     Target board (default: pico2_w)
   --sdk <path>                 pico-sdk path (default: \$PICO_SDK_PATH)
-  --dp-pin <gpio>               PIO-USB host D+ pin; D- is this + 1 (default: 0)
-  --pio <n>                    PIO block claimed by the PIO-USB host (default: 1).
-                                 0-1 on pico_w (RP2040, 2 PIO blocks); 0-2 on pico2_w
-                                 (RP2350, 3 PIO blocks) — cmake errors out on an
-                                 out-of-range value instead of building, see CMakeLists.txt
   --wifi-ssid <ssid>              Default WiFi SSID baked into the firmware
   --wifi-password <password>       Default WiFi password baked into the firmware
   -j, --jobs <n>                     Parallel build jobs (default: nproc)
@@ -75,8 +69,6 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --board) BOARD="$2"; shift 2 ;;
         --sdk) SDK_PATH="$2"; shift 2 ;;
-        --dp-pin) DP_PIN="$2"; shift 2 ;;
-        --pio) PIO_INDEX="$2"; shift 2 ;;
         --wifi-ssid) WIFI_SSID_ARG="$2"; shift 2 ;;
         --wifi-password) WIFI_PASSWORD_ARG="$2"; shift 2 ;;
         -j|--jobs) JOBS="$2"; shift 2 ;;
@@ -113,12 +105,10 @@ mkdir -p "$BUILD_DIR"
 
 WIFI_NOTE="none"
 [ -n "$WIFI_SSID_ARG" ] && WIFI_NOTE="$WIFI_SSID_ARG"
-echo "Configuring: board=$BOARD dp-pin=$DP_PIN pio=$PIO_INDEX wifi-ssid=$WIFI_NOTE"
+echo "Configuring: board=$BOARD wifi-ssid=$WIFI_NOTE"
 cmake -S "$REPO_ROOT" -B "$BUILD_DIR" \
     -DPICO_SDK_PATH="$SDK_PATH" \
     -DPICO_BOARD="$BOARD" \
-    -DPIO_USB_HOST_DP_PIN="$DP_PIN" \
-    -DPIO_USB_HOST_PIO_INDEX="$PIO_INDEX" \
     -DWIFI_SSID="$WIFI_SSID_ARG" \
     -DWIFI_PASSWORD="$WIFI_PASSWORD_ARG"
 

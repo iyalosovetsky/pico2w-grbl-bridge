@@ -1,5 +1,16 @@
 # pico2w-grbl-bridge
 
+> **`native-usb-host` branch.** Trying the board's built-in micro-USB port (via a USB-A
+> OTG adapter) as the link to grblHAL, instead of `main`'s separate PIO-USB port on
+> custom pins — first-pass hardware test, debug wiring to be finished later. Concretely,
+> vs. `main`: the native USB port is host-only (no more stdio-over-CDC device role,
+> `src/usb_descriptors.c` removed), debug `printf` output goes out **UART0** (GPIO0=TX,
+> GPIO1=RX, 115200 8N1) instead, and `tools/build.sh` has no `--dp-pin`/`--pio` (nothing
+> left to configure there). The rest of this README — REST API, WiFi setup, TBL/TBLABS/
+> ST3215 parsing — is unchanged and still describes `main`'s PIO-USB wiring in the
+> Wiring section below; ignore that section here and use a plain USB-A OTG adapter on
+> the native port instead, same as any standard "Pico as USB host" setup.
+
 WiFi/REST bridge for the [scanner turntable rig](https://github.com/iyalosovetsky/rotary-pico)
 running a [custom grblHAL](https://github.com/iyalosovetsky/RP2040_pico2w) on a BTT SKR Pico.
 

@@ -3,28 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "pio_usb.h"
 #include "tusb.h"
 
 #define LINE_BUF_LEN 256
-
-// D+ pin for the PIO-USB host port; D- is D+ + 1 (PIO_USB_PINOUT_DPDM, the library
-// default). Wire a full USB-A host connector here (D+, D-, 5V, GND) to the SKR-Pico's
-// USB port — see README.md. Deliberately NOT the native USB port, which stays free for
-// flashing/debug (stdio-over-CDC, driven by main.c's tud_init/tud_task).
-// Overridable without editing source: cmake -DPIO_USB_HOST_DP_PIN=<gpio> (see
-// CMakeLists.txt / tools/build.sh --dp-pin).
-#ifndef PIO_USB_HOST_DP_PIN
-#define PIO_USB_HOST_DP_PIN 0
-#endif
-
-// Which PIO block (0/1/2) the PIO-USB host claims (both its TX and RX state machines),
-// away from whatever block the CYW43 WiFi driver's SPI-over-PIO claims dynamically at
-// cyw43_arch_init() — without this both would default to PIO0 and could collide.
-// Overridable: cmake -DPIO_USB_HOST_PIO_INDEX=<0|1|2> (see tools/build.sh --pio).
-#ifndef PIO_USB_HOST_PIO_INDEX
-#define PIO_USB_HOST_PIO_INDEX 1
-#endif
 
 static uint8_t mounted_idx = 0xFF; // 0xFF = none mounted
 static char line_buf[LINE_BUF_LEN];
@@ -34,25 +15,12 @@ static usb_host_cdc_line_cb_t line_cb;
 static usb_host_cdc_mount_cb_t mount_cb;
 
 void usb_host_cdc_init(void) {
-    pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
-    pio_cfg.pin_dp = PIO_USB_HOST_DP_PIN;
-    pio_cfg.pio_tx_num = PIO_USB_HOST_PIO_INDEX;
-    pio_cfg.pio_rx_num = PIO_USB_HOST_PIO_INDEX;
-
-    bool cfg_ok = tuh_configure(BOARD_TUH_RHPORT, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
-    bool init_ok = tuh_init(BOARD_TUH_RHPORT);
-
-    if (!cfg_ok || !init_ok) {
-        printf("[usb] PIO-USB host FAILED to start: tuh_configure=%d tuh_init=%d"
-               " (D+=GP%d D-=GP%d PIO%d) — this is a setup/resource problem, not wiring;"
-               " nothing will ever attach until it's fixed\r\n",
-               cfg_ok, init_ok, PIO_USB_HOST_DP_PIN, PIO_USB_HOST_DP_PIN + 1, PIO_USB_HOST_PIO_INDEX);
-        return;
-    }
-
-    printf("[usb] PIO-USB host ready: D+=GP%d D-=GP%d PIO%d — waiting for a device"
-           " (nothing here ever means check the wiring, see README)\r\n",
-           PIO_USB_HOST_DP_PIN, PIO_USB_HOST_DP_PIN + 1, PIO_USB_HOST_PIO_INDEX);
+    // Native silicon USB controller in host role, via a USB-A OTG adapter on the
+    // board's own micro-USB port — see PINOUT/README for the VBUS caveat that implies
+    // (the port doesn't supply 5V out by default; needs a host cable/hub that injects it).
+    bool ok = tuh_init(BOARD_TUH_RHPORT);
+    printf(ok ? "[usb] native USB host ready — waiting for a device\r\n"
+              : "[usb] native USB host FAILED to start (tuh_init returned false)\r\n");
 }
 
 void usb_host_cdc_task(void) {
@@ -82,8 +50,8 @@ void usb_host_cdc_set_mount_callback(usb_host_cdc_mount_cb_t cb) {
 
 // ---- Generic TinyUSB host callbacks (any device, before/regardless of class) ----
 // Firing here but never followed by "[usb] CDC mounted" below means something enumerated
-// but wasn't recognized as a CDC-ACM device; never firing at all means the PIO-USB host
-// never saw anything electrically attach — almost always the VBUS wiring, not this.
+// but wasn't recognized as a CDC-ACM device; never firing at all means the host never
+// saw anything electrically attach — check the OTG adapter's VBUS wiring.
 
 void tuh_mount_cb(uint8_t daddr) {
     uint16_t vid = 0, pid = 0;
