@@ -146,6 +146,7 @@ static void on_line(const char *line) {
     }
     if (line[0] == '<') {
         parse_status_report(line);
+        shared_state_notify_status_line(); // drives the onboard LED heartbeat (led.c)
         return;
     }
     if (strncmp(line, "Grbl", 4) == 0 || strncmp(line, "GrblHAL", 7) == 0) {

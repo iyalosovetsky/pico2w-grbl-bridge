@@ -111,6 +111,16 @@ often the first thing worth checking, especially after a few `--flash`es in a ro
 `build #N` is the repo's commit count at build time (`git rev-list --count HEAD`), so it
 climbs with every commit; `-dirty` means uncommitted changes were present when you built.
 
+### Onboard LED
+
+Without a console attached, the onboard LED (`src/led.c`) is the only feedback there is:
+
+| Pattern | Meaning |
+|---|---|
+| Fast blink (~150ms) | Booting, no WiFi IP yet |
+| Three short flashes, once | Just got an IP (STA connected, or its own AP came up) |
+| Off, brief pulse every 20th line | Normal operation — pulses once per 20 grblHAL status reports received (a "still talking to grblHAL" heartbeat; `LED_HEARTBEAT_EVERY_N_LINES` in `shared_state.h`) |
+
 ## WiFi setup
 
 Two ways to give the bridge WiFi credentials, and they compose:

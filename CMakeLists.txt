@@ -50,6 +50,7 @@ add_custom_target(build_info_header ALL
 
 add_executable(bridge
     src/main.c
+    src/led.c
     src/shared_state.c
     src/usb_host_cdc.c
     src/grbl_link.c

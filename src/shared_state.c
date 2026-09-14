@@ -21,11 +21,16 @@ static size_t queue_count;
 static mutex_t rt_mutex;
 static volatile bool rt_hold, rt_resume, rt_reset;
 
+static mutex_t led_mutex;
+static uint32_t led_line_count;
+static bool led_pulse_pending;
+
 void shared_state_init(void) {
     mutex_init(&state_mutex);
     mutex_init(&console_mutex);
     mutex_init(&queue_mutex);
     mutex_init(&rt_mutex);
+    mutex_init(&led_mutex);
     memset(&state, 0, sizeof(state));
     strcpy(state.status, "Unknown");
 }
@@ -142,4 +147,21 @@ bool shared_state_take_realtime(char *out) {
     else got = false;
     mutex_exit(&rt_mutex);
     return got;
+}
+
+void shared_state_notify_status_line(void) {
+    mutex_enter_blocking(&led_mutex);
+    led_line_count++;
+    if (led_line_count % LED_HEARTBEAT_EVERY_N_LINES == 0) {
+        led_pulse_pending = true;
+    }
+    mutex_exit(&led_mutex);
+}
+
+bool shared_state_take_led_pulse(void) {
+    mutex_enter_blocking(&led_mutex);
+    bool pending = led_pulse_pending;
+    led_pulse_pending = false;
+    mutex_exit(&led_mutex);
+    return pending;
 }

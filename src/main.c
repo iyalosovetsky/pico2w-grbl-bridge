@@ -13,6 +13,7 @@
 #include "generated/build_info.h"
 #include "grbl_link.h"
 #include "http_server.h"
+#include "led.h"
 #include "shared_state.h"
 #include "wifi_config.h"
 
@@ -36,8 +37,10 @@ int main(void) {
         printf("[main] cyw43_arch_init failed\n");
         return 1;
     }
+    led_init(); // onboard LED lives on the CYW43 chip — only controllable after this
 
     wifi_config_bringup();
+    led_notify_got_ip(); // both STA and AP mode have a usable IP by the time this returns
 
     if (!http_server_start()) {
         printf("[main] failed to start HTTP server\n");
@@ -52,6 +55,7 @@ int main(void) {
     while (true) {
         cyw43_arch_poll();
         wifi_config_poll_pending();
+        led_task();
         cyw43_arch_wait_for_work_until(make_timeout_time_ms(20));
     }
 }
