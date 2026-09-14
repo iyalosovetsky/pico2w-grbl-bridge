@@ -17,7 +17,7 @@
 #define GRBL_STATUS_LEN 16
 #define GRBL_ALARM_LEN 80
 #define CONSOLE_LOG_LINES 32
-#define CONSOLE_LOG_LINE_LEN 96
+#define CONSOLE_LOG_LINE_LEN 128 // fits a full raw status report (e.g. with TBL/TBLABS/ST3215) untruncated
 #define GCODE_QUEUE_DEPTH 32
 #define GCODE_LINE_LEN 96
 

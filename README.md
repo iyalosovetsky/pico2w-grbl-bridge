@@ -168,12 +168,13 @@ curl http://<bridge-ip>/api/status
 `console` is a full, unfiltered transcript (every line sent and received, including raw
 `<...>` status reports every 250ms). `console_filtered` is the same transcript minus the
 status-report firehose: sent commands, everything else grblHAL says (`ok`/`error:`/
-`ALARM:`/`[MSG:...]`/`$$` dumps/...), and a status line — `Old -> New` on an actual
-transition (e.g. `Idle -> Run`), or plain `status: Idle` for the first report right after
-a user command even when the status word didn't change, as a "here's where things stand
-now" confirmation — see `parse_status_report()`/`force_next_status_log` in
-`grbl_link.c`. The web page's console panel shows one at a time with a toggle
-(`Повний`/`Скорочений`) and can be hidden entirely; both ship in every `/api/status`
+`ALARM:`/`[MSG:...]`/`$$` dumps/...), and — on an actual state transition (e.g. `Idle`
+becoming `Run`) or right after a user command even when the status word didn't change —
+the raw status report itself, verbatim, not paraphrased, so a manually sent `?` still
+shows its real `MPos`/`TBL`/`ST3215`/... rather than just the state word. See
+`parse_status_report()`/`force_next_status_log` in `grbl_link.c`. The web page's console
+panel shows one at a time with a toggle (`Повний`/`Скорочений`) and can be hidden
+entirely; both ship in every `/api/status`
 response so switching is instant, no extra request.
 
 `alarm` holds the text of the last `error:` or `ALARM:` line and is what the web page's

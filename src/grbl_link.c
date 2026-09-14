@@ -132,19 +132,14 @@ static void parse_status_report(const char *raw) {
         ns.servo_deg = servo_deg;
     }
 
-    // Filtered log: skip the (frequent) raw status report itself, but note an actual
-    // state transition (Idle -> Run, Run/Jog -> Idle, ...) — or, even without one, the
-    // first status reading right after a user command, as a "here's where things stand
-    // now" confirmation — since that's the part worth seeing without the full firehose.
+    // Filtered log: skip the (frequent) raw status report *most* of the time, but let
+    // one through verbatim — not paraphrased, so e.g. a manually sent '?' still shows
+    // its real MPos/TBL/ST3215/... — on an actual state transition (Idle -> Run,
+    // Run/Jog -> Idle, ...) or, even without one, right after a user command, as a
+    // "here's where things stand now" confirmation.
     bool changed = last_status_word[0] && strcmp(last_status_word, ns.status) != 0;
     if (changed || force_next_status_log) {
-        char line[GRBL_STATUS_LEN * 2 + 12];
-        if (changed) {
-            snprintf(line, sizeof(line), "%s -> %s", last_status_word, ns.status);
-        } else {
-            snprintf(line, sizeof(line), "status: %s", ns.status);
-        }
-        shared_state_filtered_push(line);
+        shared_state_filtered_push(raw);
     }
     force_next_status_log = false;
     strncpy(last_status_word, ns.status, sizeof(last_status_word) - 1);

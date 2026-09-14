@@ -45,7 +45,7 @@
   #console div.err { color: #ff8383; }
   #console div.alarm { color: #ffb84d; }
   #console div.sent { color: #7fb3ff; }
-  #console div.transition { color: #8be08b; font-weight: 600; }
+  #console div.status { color: #8be08b; }
   .alarm-banner { background: var(--err); color: #fff; padding: 8px 12px; border-radius: 8px; margin-bottom: 12px; display: none; }
   .console-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
   .console-header h2 { margin: 0; }
@@ -188,7 +188,7 @@ async function refreshStatus() {
       const cls = line.startsWith('ALARM') ? 'alarm'
         : line.startsWith('error') ? 'err'
         : line.startsWith('>') ? 'sent'
-        : / -> /.test(line) ? 'transition'
+        : line.startsWith('<') ? 'status'
         : '';
       return `<div class="${cls}">${escapeHtml(line)}</div>`;
     }).join('');
