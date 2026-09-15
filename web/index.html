@@ -54,6 +54,7 @@
   .console-header h2 { margin: 0; }
   .console-header .btnrow { margin: 0; }
   button.small { padding: 5px 10px; font-size: 12px; }
+  button.icon-btn { width: 30px; padding: 5px 0; font-size: 15px; line-height: 1; }
   .foot { color: var(--muted); font-size: 12px; margin-top: 10px; }
 
   .dial-widget { display: flex; flex-direction: column; align-items: center; gap: 2px; user-select: none; }
@@ -216,9 +217,9 @@
     <div class="console-header">
       <h2>Консоль</h2>
       <div class="btnrow">
-        <button id="modeFullBtn" class="small" onclick="setConsoleMode('full')">Повний</button>
-        <button id="modeFilteredBtn" class="small" onclick="setConsoleMode('filtered')">Скорочений</button>
-        <button id="toggleConsoleBtn" class="small" onclick="toggleConsoleVisible()">Сховати</button>
+        <button id="modeFullBtn" class="small icon-btn" onclick="setConsoleMode('full')" title="Повний лог">☰</button>
+        <button id="modeFilteredBtn" class="small icon-btn" onclick="setConsoleMode('filtered')" title="Скорочений лог">…</button>
+        <button id="toggleConsoleBtn" class="small icon-btn" onclick="toggleConsoleVisible()" title="Сховати консоль">▲</button>
       </div>
     </div>
     <div id="console"></div>
@@ -269,7 +270,11 @@ function updateConsoleControls() {
   document.getElementById('modeFullBtn').classList.toggle('primary', consoleMode === 'full');
   document.getElementById('modeFilteredBtn').classList.toggle('primary', consoleMode === 'filtered');
   document.getElementById('console').hidden = !consoleVisible;
-  document.getElementById('toggleConsoleBtn').textContent = consoleVisible ? 'Сховати' : 'Показати';
+  // Chevron points the way the click will collapse/expand — ▲ (visible, click hides)
+  // matches the conventional "points toward the content it'll fold away" direction.
+  const toggleBtn = document.getElementById('toggleConsoleBtn');
+  toggleBtn.textContent = consoleVisible ? '▲' : '▼';
+  toggleBtn.title = consoleVisible ? 'Сховати консоль' : 'Показати консоль';
 }
 
 // The board's own last_status_ms only advances while core1 (the USB/grblHAL link) is
