@@ -202,10 +202,19 @@ console](docs/jog-dials.png)
 | Tilt (servo) | Partial arc, needle | `M101 Q<absolute>` (current + delta, clamped) | 130°-235° ($451/$452) |
 | Y | Wide bar (top) | `$J=G91 Y<delta> F300` (jog) | — |
 | Z | Tall bar (right edge) | `$J=G91 Z<delta> F300` (jog) | — |
-| ← / → (in the Y bar) | Small round buttons, left/right edge of the Y bar | `$J=G91 Y50 F1800` / `$J=G91 Y-50 F1800` — a fixed 50mm jog, one click | — |
+| ← / → (in the Y bar) | Small round buttons, left/right edge of the Y bar | `$J=G91 Y50 F3000` / `$J=G91 Y-50 F3000` — a fixed 50mm jog, one click | — |
 | 0 (in the Y bar) | Small accent-colored button, bottom-right corner of the Y bar | `G54` then `G10 L20 P1 Y0` — zero Y in G54 | — |
 | ↑ / ↓ (in the Z bar) | Small round buttons, top/bottom edge of the Z bar | `$J=G91 Z20 F600` / `$J=G91 Z-20 F600` — a fixed 20mm jog, one click | — |
 | 0 (in the Z bar) | Small accent-colored button, bottom-right corner of the Z bar | `G54` then `G10 L20 P1 Z0` — zero Z in G54 | — |
+
+F3000 on the ←/→ buttons isn't arbitrary — it matches this rig's Y-axis `$111` (max
+rate) setting, raised from its default 1000 to 3000 directly on the grblHAL controller
+(along with `$121`, acceleration, 10 -> 30) after a first attempt at just raising the
+bridge-side F alone (600 -> 1800) turned out to change almost nothing: `$J` silently
+clamps to whatever `$111` allows, and 1000 was the real ceiling the whole time. Those
+two settings live in grblHAL's own EEPROM on the SKR Pico, not anywhere in this repo —
+re-tune with `$111=<rate>`/`$121=<accel>` (sent as plain G-code through the bridge) if
+the rig's real-world limits change, and keep the buttons' F here in sync.
 
 The turntable is drawn as a flat ellipse (`rx` >> `ry`, `polarToEllipseXY()`) rather than
 a plain circle, since it's a table lying flat and this gives it an isometric look instead
