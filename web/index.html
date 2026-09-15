@@ -516,11 +516,11 @@ attachWheelCommand(document.getElementById('servoSvg'), 0.05, (delta) => {
   quickSend(`M101 Q${target.toFixed(1)}`);
 });
 
-// Y/Z: relative jog moves. 0.02 => ~2mm per typical wheel click (Y doubled to 0.04 per
-// user request — Z unchanged). Sign is inverted (negative sensitivity) vs. the
-// table/servo dials above — scroll-down-to-move-positive felt backwards for these two
-// on the real rig.
-attachWheelCommand(document.getElementById('yBox'), -0.04, (delta) => {
+// Y/Z: relative jog moves. 0.02 => ~2mm per typical wheel click (Y bumped to 0.16 per
+// user request — 2x, then 4x more on top of that — Z unchanged). Sign is inverted
+// (negative sensitivity) vs. the table/servo dials above — scroll-down-to-move-positive
+// felt backwards for these two on the real rig.
+attachWheelCommand(document.getElementById('yBox'), -0.16, (delta) => {
   if (Math.abs(delta) < 0.001) return;
   quickSend(`$J=G91 Y${delta.toFixed(3)} F300`);
 });
