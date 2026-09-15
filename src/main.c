@@ -27,7 +27,7 @@
 
 static void print_banner(void) {
     printf("\n========================================\n");
-    printf(" Scanner Rig Bridge\n");
+    printf(" Scanner Rig Bridge v%s\n", FIRMWARE_VERSION);
     printf(" Built: %s (build #%d, %s%s)\n", BUILD_TIMESTAMP, BUILD_NUMBER, BUILD_GIT_HASH,
            BUILD_GIT_DIRTY ? "-dirty" : "");
     printf("========================================\n");

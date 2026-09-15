@@ -102,15 +102,17 @@ often the first thing worth checking, especially after a few `--flash`es in a ro
 
 ```
 ========================================
- Scanner Rig Bridge
+ Scanner Rig Bridge v0.1
  Built: 2026-09-15 09:12:03 UTC (build #12, e4bb8bc)
 ========================================
 ...
 [main] Ready — mode: STA  ip: 10.80.39.126  http://10.80.39.126/
 ```
 
-`build #N` is the repo's commit count at build time (`git rev-list --count HEAD`), so it
-climbs with every commit; `-dirty` means uncommitted changes were present when you built.
+The version comes from the `VERSION` file at the repo root (bump it and commit to cut a
+new release). `build #N` is the repo's commit count at build time (`git rev-list --count
+HEAD`), so it climbs with every commit regardless of version; `-dirty` means uncommitted
+changes were present when you built.
 
 ### Onboard LED
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Generates a small C header with build metadata (timestamp, git-derived build
-number/hash/dirty flag) for the startup banner. Re-run on every build (see
-CMakeLists.txt's always-run custom target) so it's never stale.
+"""Generates a small C header with build metadata (version from ../VERSION, timestamp,
+git-derived build number/hash/dirty flag) for the startup banner. Re-run on every build
+(see CMakeLists.txt's always-run custom target) so it's never stale.
 
 Usage: gen_build_info.py <output .h>
 """
@@ -31,6 +31,9 @@ def main():
     out_path = sys.argv[1]
     repo_dir = pathlib.Path(__file__).resolve().parent.parent
 
+    version_file = repo_dir / "VERSION"
+    version = version_file.read_text().strip() if version_file.exists() else "0.0-unknown"
+
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     count = git("rev-list", "--count", "HEAD", cwd=repo_dir)
@@ -44,6 +47,7 @@ def main():
     with open(out_path, "w") as f:
         f.write("// Auto-generated on every build — do not edit by hand.\n")
         f.write("#pragma once\n\n")
+        f.write('#define FIRMWARE_VERSION "{}"\n'.format(version))
         f.write('#define BUILD_TIMESTAMP "{}"\n'.format(timestamp))
         f.write("#define BUILD_NUMBER {}\n".format(build_number))
         f.write('#define BUILD_GIT_HASH "{}"\n'.format(git_hash))
