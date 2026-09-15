@@ -61,13 +61,20 @@ static size_t json_escape_append(char *out, size_t out_cap, size_t pos, const ch
 }
 
 static void handle_status(char *out, size_t cap, http_response_t *resp) {
-    machine_state_t st;
+    // static, not stack-local: core0's entire stack is one of the RP2040's 4KB scratch
+    // banks (see sections_stack.incl in the SDK) — console+filtered+filtered_seq alone
+    // total ~5.2KB (30 filtered lines x 120 bytes was the change that tipped this over),
+    // more than the whole stack on its own before even counting the rest of the call
+    // chain down from main()'s poll loop. handle_status() is only ever called
+    // synchronously from that single-threaded loop (never reentrant), so static here is
+    // safe and just moves this into .bss instead of blowing the stack.
+    static machine_state_t st;
     shared_state_get(&st);
 
-    char console[STATUS_CONSOLE_LINES][CONSOLE_LOG_LINE_LEN];
+    static char console[STATUS_CONSOLE_LINES][CONSOLE_LOG_LINE_LEN];
     size_t n_console = shared_state_console_snapshot(console, STATUS_CONSOLE_LINES);
-    char filtered[STATUS_FILTERED_LINES][CONSOLE_LOG_LINE_LEN];
-    uint32_t filtered_seq[STATUS_FILTERED_LINES];
+    static char filtered[STATUS_FILTERED_LINES][CONSOLE_LOG_LINE_LEN];
+    static uint32_t filtered_seq[STATUS_FILTERED_LINES];
     size_t n_filtered = shared_state_filtered_snapshot(filtered_seq, filtered, STATUS_FILTERED_LINES);
 
     size_t pos = 0;
