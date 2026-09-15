@@ -202,7 +202,7 @@ console](docs/jog-dials.png)
 | Tilt (servo) | Partial arc, needle | `M101 Q<absolute>` (current + delta, clamped) | 130°-235° ($451/$452) |
 | Y | Wide bar (top) | `$J=G91 Y<delta> F300` (jog) | — |
 | Z | Tall bar (right edge) | `$J=G91 Z<delta> F300` (jog) | — |
-| ← / → (in the Y bar) | Small round buttons, left/right edge of the Y bar | `$J=G91 Y50 F600` / `$J=G91 Y-50 F600` — a fixed 50mm jog, one click | — |
+| ← / → (in the Y bar) | Small round buttons, left/right edge of the Y bar | `$J=G91 Y50 F1800` / `$J=G91 Y-50 F1800` — a fixed 50mm jog, one click | — |
 | 0 (in the Y bar) | Small accent-colored button, bottom-right corner of the Y bar | `G54` then `G10 L20 P1 Y0` — zero Y in G54 | — |
 | ↑ / ↓ (in the Z bar) | Small round buttons, top/bottom edge of the Z bar | `$J=G91 Z20 F600` / `$J=G91 Z-20 F600` — a fixed 20mm jog, one click | — |
 | 0 (in the Z bar) | Small accent-colored button, bottom-right corner of the Z bar | `G54` then `G10 L20 P1 Z0` — zero Z in G54 | — |

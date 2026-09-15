@@ -177,10 +177,10 @@
         <div class="axis-box" id="yBox">
           <span class="dial-badge">Y</span>
           <button type="button" class="jog-btn jog-btn-left" id="yLeftBtn"
-                  title="Перемістити на 50 мм ліворуч (Y+50, F600)">←</button>
+                  title="Перемістити на 50 мм ліворуч (Y+50, F1800)">←</button>
           <div class="dial-value" id="yValue">—</div>
           <button type="button" class="jog-btn jog-btn-right" id="yRightBtn"
-                  title="Перемістити на 50 мм праворуч (Y-50, F600)">→</button>
+                  title="Перемістити на 50 мм праворуч (Y-50, F1800)">→</button>
           <button type="button" class="zero-y-btn" id="yZeroBtn"
                   title="Занулити Y (в G54, перемикнувши на нього за потреби): G10 L20 P1 Y0">0</button>
         </div>
@@ -610,9 +610,12 @@ attachWheelCommand(document.getElementById('zBox'), -0.02, (delta) => {
   quickSend(`$J=G91 Z${delta.toFixed(3)} F300`);
 });
 
-// Fixed-distance Y jog shortcuts (50mm @ F600) — separate from the wheel nudge above.
-document.getElementById('yLeftBtn').addEventListener('click', () => quickSend('$J=G91 Y50 F600'));
-document.getElementById('yRightBtn').addEventListener('click', () => quickSend('$J=G91 Y-50 F600'));
+// Fixed-distance Y jog shortcuts (50mm @ F1800, 3x the original F600 per user request —
+// $J respects the axis's own max rate ($110-ish in grblHAL, whatever this rig's fork
+// calls it) and just clamps to it if F is set higher, so this is safe even if the real
+// ceiling turns out to be lower) — separate from the wheel nudge above.
+document.getElementById('yLeftBtn').addEventListener('click', () => quickSend('$J=G91 Y50 F1800'));
+document.getElementById('yRightBtn').addEventListener('click', () => quickSend('$J=G91 Y-50 F1800'));
 
 // Zero Y: G54 first (harmless no-op if already active) so the machine is actually in
 // that system before G10 L20 sets its offset — setting G54's offset while some other
