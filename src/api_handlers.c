@@ -60,7 +60,8 @@ static void handle_status(char *out, size_t cap, http_response_t *resp) {
     char console[STATUS_CONSOLE_LINES][CONSOLE_LOG_LINE_LEN];
     size_t n_console = shared_state_console_snapshot(console, STATUS_CONSOLE_LINES);
     char filtered[STATUS_FILTERED_LINES][CONSOLE_LOG_LINE_LEN];
-    size_t n_filtered = shared_state_filtered_snapshot(filtered, STATUS_FILTERED_LINES);
+    uint32_t filtered_seq[STATUS_FILTERED_LINES];
+    size_t n_filtered = shared_state_filtered_snapshot(filtered_seq, filtered, STATUS_FILTERED_LINES);
 
     size_t pos = 0;
     pos = japp(out, cap, pos,
@@ -116,6 +117,14 @@ static void handle_status(char *out, size_t cap, http_response_t *resp) {
         pos = japp(out, cap, pos, "%s\"", i ? "," : "");
         pos = json_escape_append(out, cap, pos, filtered[i]);
         pos = japp(out, cap, pos, "\"");
+    }
+    // Parallel array of per-line sequence numbers (shared_state_filtered_push()) — the
+    // ring buffer here only holds a handful of lines, so the web page accumulates its
+    // own longer scrollback across polls by tracking which sequence numbers it has
+    // already appended instead of us growing this buffer.
+    pos = japp(out, cap, pos, "],\"console_filtered_seq\":[");
+    for (size_t i = 0; i < n_filtered; i++) {
+        pos = japp(out, cap, pos, "%s%u", i ? "," : "", (unsigned) filtered_seq[i]);
     }
     pos = japp(out, cap, pos, "]}");
 

@@ -15,8 +15,10 @@ static size_t console_count;
 
 static mutex_t filtered_mutex;
 static char filtered_lines[CONSOLE_LOG_LINES][CONSOLE_LOG_LINE_LEN];
+static uint32_t filtered_seqs[CONSOLE_LOG_LINES];
 static size_t filtered_head;
 static size_t filtered_count;
+static uint32_t filtered_next_seq = 1; // 0 is reserved as "nothing seen yet" for the web page
 
 static mutex_t queue_mutex;
 static char gcode_lines[GCODE_QUEUE_DEPTH][GCODE_LINE_LEN];
@@ -113,6 +115,7 @@ void shared_state_filtered_push(const char *line) {
     size_t write_idx = (filtered_head + filtered_count) % CONSOLE_LOG_LINES;
     strncpy(filtered_lines[write_idx], line, CONSOLE_LOG_LINE_LEN - 1);
     filtered_lines[write_idx][CONSOLE_LOG_LINE_LEN - 1] = '\0';
+    filtered_seqs[write_idx] = filtered_next_seq++;
     if (filtered_count < CONSOLE_LOG_LINES) {
         filtered_count++;
     } else {
@@ -121,13 +124,14 @@ void shared_state_filtered_push(const char *line) {
     mutex_exit(&filtered_mutex);
 }
 
-size_t shared_state_filtered_snapshot(char out[][CONSOLE_LOG_LINE_LEN], size_t max_lines) {
+size_t shared_state_filtered_snapshot(uint32_t out_seq[], char out[][CONSOLE_LOG_LINE_LEN], size_t max_lines) {
     mutex_enter_blocking(&filtered_mutex);
     size_t n = filtered_count < max_lines ? filtered_count : max_lines;
     size_t skip = filtered_count - n;
     for (size_t i = 0; i < n; i++) {
         size_t idx = (filtered_head + skip + i) % CONSOLE_LOG_LINES;
         memcpy(out[i], filtered_lines[idx], CONSOLE_LOG_LINE_LEN);
+        out_seq[i] = filtered_seqs[idx];
     }
     mutex_exit(&filtered_mutex);
     return n;

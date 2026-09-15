@@ -63,8 +63,15 @@ size_t shared_state_console_snapshot(char out[][CONSOLE_LOG_LINE_LEN], size_t ma
 // status reports, which only appear here as a synthetic "Old -> New" line when the
 // parsed status word actually changes (grbl_link.c's parse_status_report()). Same
 // ring-buffer shape/API as the full log, for the web UI's "filtered" view.
+//
+// Each entry also gets a monotonically increasing sequence number (1, 2, 3, ... —
+// never resets, wraps only past 2^32 pushes) so the web page can tell *which* lines
+// out of a given snapshot it has already seen. The ring buffer here still only holds
+// CONSOLE_LOG_LINES entries — the page keeps its own larger scrollback by accumulating
+// every new-sequence line across polls instead of us growing this buffer.
 void shared_state_filtered_push(const char *line);
-size_t shared_state_filtered_snapshot(char out[][CONSOLE_LOG_LINE_LEN], size_t max_lines);
+// Copies up to max_lines into out[]/out_seq[], oldest-of-the-window first. Returns count copied.
+size_t shared_state_filtered_snapshot(uint32_t out_seq[], char out[][CONSOLE_LOG_LINE_LEN], size_t max_lines);
 
 // Outbound G-code line queue: HTTP handlers (core0) push, grbl_link (core1) pops.
 bool gcode_queue_push(const char *line);         // false if the queue is full

@@ -255,7 +255,7 @@ All bodies are plain text (no JSON payloads to build by hand), responses are JSO
 | Method | Path | Body | Notes |
 |---|---|---|---|
 | GET | `/` | — | The web UI |
-| GET | `/api/status` | — | `{connected, status, naxes, mpos[], has_wpos, wpos[], feed, speed, alarm, table, table_abs, servo, wcs, wifi_mode, ap_ssid, last_status_ms, console[], console_filtered[]}` |
+| GET | `/api/status` | — | `{connected, status, naxes, mpos[], has_wpos, wpos[], feed, speed, alarm, table, table_abs, servo, wcs, wifi_mode, ap_ssid, last_status_ms, console[], console_filtered[], console_filtered_seq[]}` |
 | POST | `/api/gcode` | one command per line | Queued and sent to grblHAL one line at a time; `{total, queued, rejected}` |
 | POST | `/api/hold` | — | Real-time feed hold (`!`) |
 | POST | `/api/resume` | — | Real-time cycle resume (`~`) |
@@ -278,9 +278,21 @@ becoming `Run`) or right after a user command even when the status word didn't c
 the raw status report itself, verbatim, not paraphrased, so a manually sent `?` still
 shows its real `MPos`/`TBL`/`ST3215`/... rather than just the state word. See
 `parse_status_report()`/`force_next_status_log` in `grbl_link.c`. The web page's console
-panel shows one at a time with a toggle (`Повний`/`Скорочений`) and can be hidden
-entirely; both ship in every `/api/status`
-response so switching is instant, no extra request.
+panel shows one at a time with a toggle (`☰`/`…`) and can be hidden entirely; both ship
+in every `/api/status` response so switching is instant, no extra request.
+
+`console_filtered` is capped to the board's own small ring buffer (its newest ~12 lines
+each poll — see `STATUS_FILTERED_LINES` in `api_handlers.c`) to keep the response light
+over WiFi; growing that buffer on the board wasn't worth the RAM. Instead each line in
+it carries a monotonically increasing sequence number in the parallel
+`console_filtered_seq` array (`shared_state_filtered_push()`), and the web page
+accumulates every new-sequence line into its own up-to-40-line scrollback
+(`FILTERED_SCROLLBACK_MAX`/`mergeFilteredLines()` in `web/index.html`) instead of
+replacing the displayed list wholesale every poll. If more than ~12 new lines land
+between two 500ms polls the extras are skipped (same ring-buffer-size tradeoff as
+before, just less likely to bite now); if the sequence number ever goes backwards — the
+board rebooted and restarted counting from 1 — the page detects that and starts its
+scrollback over rather than getting stuck treating every future line as "already seen".
 
 `alarm` holds the text of the last `error:` or `ALARM:` line and is what the web page's
 red banner shows — it's cleared by the *next user command* (any `/api/gcode`, `/api/hold`,

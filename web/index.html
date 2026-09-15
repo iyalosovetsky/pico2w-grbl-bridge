@@ -275,6 +275,44 @@ try {
   consoleVisible = localStorage.getItem('consoleVisible') !== 'hidden';
 } catch (e) { /* private browsing etc. — defaults above are fine */ }
 
+// The board only ever sends its newest ~12 filtered-log lines per poll (its own ring
+// buffer is small, and the response goes out over WiFi twice a second) — replacing the
+// displayed list with exactly that every time meant older lines vanished the moment
+// more than 12 new ones arrived between two polls. Each line now carries a
+// monotonically increasing sequence number (console_filtered_seq), so instead the page
+// accumulates every new-sequence line into its own larger buffer here and only evicts
+// past FILTERED_SCROLLBACK_MAX — the ring buffer on the board stays the size it was.
+const FILTERED_SCROLLBACK_MAX = 40;
+let filteredBuffer = []; // [{seq, line}], oldest first
+let filteredLastSeq = 0; // highest sequence number appended so far
+
+function mergeFilteredLines(lines, seqs) {
+  if (!Array.isArray(seqs) || seqs.length !== lines.length) {
+    return lines; // older firmware without console_filtered_seq — just show what we got
+  }
+  if (lines.length === 0) return filteredBuffer.map(e => e.line);
+
+  const maxIncoming = Math.max(...seqs);
+  if (maxIncoming < filteredLastSeq) {
+    // Sequence numbers went backwards — the board rebooted (or grblHAL reconnected)
+    // and restarted counting from 1. Start over instead of treating every future line
+    // as "already seen" forever because it's numbered lower than our old high-water mark.
+    filteredBuffer = [];
+    filteredLastSeq = 0;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    if (seqs[i] > filteredLastSeq) {
+      filteredBuffer.push({ seq: seqs[i], line: lines[i] });
+      filteredLastSeq = seqs[i];
+    }
+  }
+  if (filteredBuffer.length > FILTERED_SCROLLBACK_MAX) {
+    filteredBuffer.splice(0, filteredBuffer.length - FILTERED_SCROLLBACK_MAX);
+  }
+  return filteredBuffer.map(e => e.line);
+}
+
 function setConsoleMode(mode) {
   consoleMode = mode;
   try { localStorage.setItem('consoleMode', mode); } catch (e) {}
@@ -384,7 +422,10 @@ async function refreshStatus() {
     const c = document.getElementById('console');
     if (!hasActiveSelectionIn(c)) {
       const stick = c.scrollTop + c.clientHeight >= c.scrollHeight - 4;
-      const lines = (consoleMode === 'full' ? s.console : s.console_filtered) || [];
+      // Merge unconditionally (not just when the filtered view is showing) so the
+      // scrollback stays current even while the user's parked on the "full" view.
+      const filteredLines = mergeFilteredLines(s.console_filtered || [], s.console_filtered_seq || []);
+      const lines = consoleMode === 'full' ? (s.console || []) : filteredLines;
       c.innerHTML = lines.map(line => {
         const cls = line.startsWith('ALARM') ? 'alarm'
           : line.startsWith('error') ? 'err'
