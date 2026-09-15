@@ -70,19 +70,25 @@
   .dial-z-wrap { grid-column: 2; grid-row: 2; display: flex; flex-direction: column;
     align-items: center; height: 100%; }
   .dial-z-wrap .axis-box { flex: 0 0 75%; width: 70px; align-self: center; }
-  .dial-main { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; gap: 4px;
-    min-height: 0; height: 100%; }
+  /* Servo and table overlap the same box (position:relative/absolute) instead of
+     stacking in a column — an oval doesn't fill the rectangular corner it sits in, so
+     the ellipse can spread underneath/behind the servo's corner and use nearly the
+     whole area instead of being confined to whatever's left below it. */
+  .dial-main { grid-column: 1; grid-row: 2; position: relative; min-height: 0; height: 100%; }
   /* Tucked into the top-right corner, flush against the Y bar above and the Z bar to
-     the right, so the ellipse below gets as much vertical room as possible. */
-  .dial-servo-wrap { flex: 0 0 auto; align-self: flex-end; }
+     the right. */
+  .dial-servo-wrap { position: absolute; top: 0; right: 0; z-index: 1; }
   .dial-servo-wrap svg { width: 100px; height: 100px; }
-  .dial-table-wrap { flex: 1 1 auto; min-height: 70px; width: 100%;
-    display: flex; align-items: center; justify-content: center; }
-  /* width:auto (not 100%) lets the SVG's intrinsic viewBox ratio (5:3) drive its own
-     width from the definite height — two independently-computed percentages here could
-     end up slightly mismatched at some browser zoom levels, shrinking the effective box
-     down to a sliver and making the ellipse look squashed/tiny instead of just smaller. */
-  .dial-table-wrap svg { width: auto; height: 100%; max-width: 100%; display: block; }
+  .dial-table-wrap { position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; }
+  /* width:auto (not 100%) lets the SVG's intrinsic viewBox ratio drive its own width
+     from the definite height — two independently-computed percentages here could end up
+     slightly mismatched at some browser zoom levels, shrinking the effective box down to
+     a sliver and making the ellipse look squashed/tiny instead of just smaller. flex:1
+     with a min-height floor gives it as much of the box's height as the value/label
+     below leave available. */
+  .dial-table-wrap svg { width: auto; flex: 1 1 auto; min-height: 70px; max-width: 100%; display: block; }
+  .dial-table-wrap .dial-value, .dial-table-wrap .dial-label { flex: 0 0 auto; }
 </style>
 </head>
 <body>
@@ -142,13 +148,13 @@
         </div>
 
         <div class="dial-widget dial-table-wrap">
-          <svg id="tableSvg" viewBox="0 0 200 120" preserveAspectRatio="xMidYMid meet">
-            <ellipse cx="100" cy="60" rx="92" ry="46" fill="none" stroke="var(--border)" stroke-width="2"/>
-            <ellipse cx="100" cy="60" rx="62" ry="31" fill="none" stroke="var(--border)" stroke-width="1"/>
-            <ellipse cx="100" cy="60" rx="32" ry="16" fill="none" stroke="var(--border)" stroke-width="1"/>
-            <line id="tableNeedle" x1="100" y1="60" x2="192" y2="60" stroke="var(--accent)"
+          <svg id="tableSvg" viewBox="0 0 200 70" preserveAspectRatio="xMidYMid meet">
+            <ellipse cx="100" cy="35" rx="94" ry="32" fill="none" stroke="var(--border)" stroke-width="2"/>
+            <ellipse cx="100" cy="35" rx="63" ry="21" fill="none" stroke="var(--border)" stroke-width="1"/>
+            <ellipse cx="100" cy="35" rx="32" ry="11" fill="none" stroke="var(--border)" stroke-width="1"/>
+            <line id="tableNeedle" x1="100" y1="35" x2="192" y2="35" stroke="var(--accent)"
                   stroke-width="4" stroke-linecap="round"/>
-            <circle cx="100" cy="60" r="4" fill="var(--accent)"/>
+            <circle cx="100" cy="35" r="4" fill="var(--accent)"/>
           </svg>
           <div class="dial-value" id="tableValue">—</div>
           <div class="dial-label">Стіл</div>
@@ -377,7 +383,7 @@ let latestStatus = null; // for the servo's absolute-target math (current + whee
 
 function updateDials(s) {
   if (s.table !== null && s.table !== undefined) {
-    setEllipseNeedle(document.getElementById('tableNeedle'), 100, 60, 82, 41, s.table);
+    setEllipseNeedle(document.getElementById('tableNeedle'), 100, 35, 84, 28, s.table);
     document.getElementById('tableValue').textContent = Math.round(s.table) + '°';
   }
   if (s.servo !== null && s.servo !== undefined) {
