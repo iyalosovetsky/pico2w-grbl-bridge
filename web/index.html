@@ -576,35 +576,47 @@ document.getElementById('yRightBtn').addEventListener('click', () => quickSend('
 // Zero Y: G54 first (harmless no-op if already active) so the machine is actually in
 // that system before G10 L20 sets its offset — setting G54's offset while some other
 // WCS is active wouldn't zero what the user is currently looking at.
-document.getElementById('yZeroBtn').addEventListener('click', async () => {
-  await api('/api/gcode', { method: 'POST', body: 'G54\nG10 L20 P1 Y0' });
-  refreshStatus();
-});
+document.getElementById('yZeroBtn').addEventListener('click', () => sendGcodeBody('G54\nG10 L20 P1 Y0'));
 
 // Same as above for Z: fixed 20mm up/down jog and a zero-in-G54 button.
 document.getElementById('zUpBtn').addEventListener('click', () => quickSend('$J=G91 Z20 F600'));
 document.getElementById('zDownBtn').addEventListener('click', () => quickSend('$J=G91 Z-20 F600'));
-document.getElementById('zZeroBtn').addEventListener('click', async () => {
-  await api('/api/gcode', { method: 'POST', body: 'G54\nG10 L20 P1 Z0' });
-  refreshStatus();
-});
+document.getElementById('zZeroBtn').addEventListener('click', () => sendGcodeBody('G54\nG10 L20 P1 Z0'));
 
 function escapeHtml(s) {
   return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+
+// Every /api/gcode POST (wheel jogs, the fixed-step/zero buttons, the textarea) funnels
+// through here so at most one is ever in flight — clicking a button while a previous
+// send is still resolving used to fire a second, overlapping POST against the board's
+// tiny embedded HTTP server. That's the same class of bug the status-polling hang
+// (statusFetchInFlight, see refreshStatus()) was fixed for, just on the write side: the
+// overlapping request would sometimes silently fail (the button's own CSS :active state
+// still flashes since that's unrelated to the JS outcome), which read as "the button
+// doesn't work" with no visible error. Queueing instead of dropping means a rapid click
+// still executes, just after the previous one finishes.
+let gcodeSendChain = Promise.resolve();
+
+function sendGcodeBody(body) {
+  gcodeSendChain = gcodeSendChain
+    .catch(() => {}) // a previous failure shouldn't wedge the queue for later commands
+    .then(() => api('/api/gcode', { method: 'POST', body }))
+    .then(() => refreshStatus())
+    .catch((e) => console.error('[gcode] send failed:', e));
+  return gcodeSendChain;
 }
 
 async function sendGcode() {
   const ta = document.getElementById('gcodeInput');
   const text = ta.value.trim();
   if (!text) return;
-  await api('/api/gcode', { method: 'POST', body: text });
   ta.value = '';
-  refreshStatus();
+  await sendGcodeBody(text);
 }
 
 async function quickSend(line) {
-  await api('/api/gcode', { method: 'POST', body: line });
-  refreshStatus();
+  await sendGcodeBody(line);
 }
 
 async function rt(which) {
