@@ -281,18 +281,21 @@ shows its real `MPos`/`TBL`/`ST3215`/... rather than just the state word. See
 panel shows one at a time with a toggle (`☰`/`…`) and can be hidden entirely; both ship
 in every `/api/status` response so switching is instant, no extra request.
 
-`console_filtered` is capped to the board's own small ring buffer (its newest ~12 lines
-each poll — see `STATUS_FILTERED_LINES` in `api_handlers.c`) to keep the response light
-over WiFi; growing that buffer on the board wasn't worth the RAM. Instead each line in
-it carries a monotonically increasing sequence number in the parallel
-`console_filtered_seq` array (`shared_state_filtered_push()`), and the web page
-accumulates every new-sequence line into its own up-to-40-line scrollback
-(`FILTERED_SCROLLBACK_MAX`/`mergeFilteredLines()` in `web/index.html`) instead of
-replacing the displayed list wholesale every poll. If more than ~12 new lines land
-between two 500ms polls the extras are skipped (same ring-buffer-size tradeoff as
-before, just less likely to bite now); if the sequence number ever goes backwards — the
-board rebooted and restarted counting from 1 — the page detects that and starts its
-scrollback over rather than getting stuck treating every future line as "already seen".
+`console_filtered` sends the newest 30 lines each poll (`STATUS_FILTERED_LINES` in
+`api_handlers.c`) — comfortably inside the ring buffer's own 32-line capacity
+(`CONSOLE_LOG_LINES` in `shared_state.h`, unchanged) and the 7168-byte response buffer
+(`RESP_BUF_SIZE` in `http_server.c`, bumped from 6144 to fit it), so this cost no extra
+static RAM on the board itself. Each line also carries a monotonically increasing
+sequence number in the parallel `console_filtered_seq` array
+(`shared_state_filtered_push()`), and the web page accumulates every new-sequence line
+into its own up-to-40-line scrollback (`FILTERED_SCROLLBACK_MAX`/`mergeFilteredLines()`
+in `web/index.html`) instead of replacing the displayed list wholesale every poll — the
+30-line-per-poll window just makes it far less likely for a burst of activity to
+produce more new lines than a single 500ms poll can see (previously 12, an easy number
+to exceed). If it ever does, the extras are skipped; if the sequence number goes
+backwards — the board rebooted and restarted counting from 1 — the page detects that and
+starts its scrollback over rather than getting stuck treating every future line as
+"already seen".
 
 `alarm` holds the text of the last `error:` or `ALARM:` line and is what the web page's
 red banner shows — it's cleared by the *next user command* (any `/api/gcode`, `/api/hold`,

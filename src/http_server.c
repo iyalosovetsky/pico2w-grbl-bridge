@@ -12,7 +12,12 @@
 #include "api_handlers.h"
 
 #define REQ_BUF_SIZE 4096
-#define RESP_BUF_SIZE 6144
+// Sized for /api/status's worst case: STATUS_FILTERED_LINES (api_handlers.c) lines at
+// up to CONSOLE_LOG_LINE_LEN bytes each, plus their sequence numbers, plus everything
+// else in the JSON — comfortably under this with room to spare, calloc'd per connection
+// (http_server_accept()) so bumping it costs a few KB of RAM only while a request is
+// actually in flight, negligible against the RP2040/RP2350's total SRAM.
+#define RESP_BUF_SIZE 7168
 #define POLL_INTERVAL_S 5
 #define HEADERS_TIMEOUT_US (10 * 1000 * 1000)
 

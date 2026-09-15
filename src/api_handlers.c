@@ -11,9 +11,16 @@
 #include "wifi_config.h"
 
 // Only the newest few console lines go into every /api/status poll — keep the response
-// small since the web page re-fetches it twice a second over WiFi.
+// small since the web page re-fetches it twice a second over WiFi. STATUS_FILTERED_LINES
+// is deliberately bigger than STATUS_CONSOLE_LINES: it's the window the web page's
+// client-side scrollback (mergeFilteredLines() in web/index.html) has to catch every
+// new-sequence line in before it scrolls out — too small a window here means lines get
+// silently skipped whenever more than that many land between two 500ms polls, no matter
+// how big the client-side buffer is. 30 still fits CONSOLE_LOG_LINES' existing ring
+// buffer capacity (shared_state.h) with no extra RAM, and the resulting JSON still fits
+// RESP_BUF_SIZE (http_server.c) with room to spare.
 #define STATUS_CONSOLE_LINES 12
-#define STATUS_FILTERED_LINES 12
+#define STATUS_FILTERED_LINES 30
 
 // snprintf's return value is how much it *would* have written given unlimited space —
 // once accumulated `pos` has already reached `cap` in a chain of "pos += snprintf(out +
