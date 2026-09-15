@@ -53,16 +53,29 @@
   button.small { padding: 5px 10px; font-size: 12px; }
   .foot { color: var(--muted); font-size: 12px; margin-top: 10px; }
 
-  .dials { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
   .dial-widget { display: flex; flex-direction: column; align-items: center; gap: 2px; user-select: none; }
   .dial-widget svg { touch-action: none; cursor: ns-resize; }
   .dial-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
   .dial-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
-  .axis-box { width: 60px; height: 140px; border: 2px solid var(--border); border-radius: 10px;
+  .axis-box { border: 2px solid var(--border); border-radius: 10px;
     display: flex; align-items: center; justify-content: center; cursor: ns-resize;
     background: var(--card); touch-action: none; }
-  .axis-box.horizontal { width: 140px; height: 60px; }
   .axis-box .dial-value { font-size: 22px; }
+
+  /* Y (top bar, ~75% width) / Z (right bar, ~75% height) / servo+table (remaining area) */
+  .dials-layout { display: grid; grid-template-columns: 76% 1fr; grid-template-rows: 64px 1fr;
+    gap: 10px; height: 62vh; min-height: 380px; }
+  .dial-y-wrap { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; height: 100%; }
+  .dial-y-wrap .axis-box { flex: 1 1 auto; width: 100%; min-height: 0; }
+  .dial-z-wrap { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column;
+    align-items: center; height: 100%; }
+  .dial-z-wrap .axis-box { flex: 0 0 75%; width: 70px; align-self: center; }
+  .dial-main { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; gap: 8px;
+    min-height: 0; height: 100%; }
+  .dial-servo-wrap { flex: 0 0 auto; align-self: center; }
+  .dial-servo-wrap svg { width: 120px; height: 120px; }
+  .dial-table-wrap { flex: 1 1 auto; min-height: 0; width: 100%; }
+  .dial-table-wrap svg { width: 100%; height: 100%; display: block; }
 </style>
 </head>
 <body>
@@ -99,37 +112,41 @@
 
   <div class="card" style="margin-top:12px;">
     <h2>Джог коліщатком миші</h2>
-    <div class="dials">
-      <div class="dial-widget">
-        <svg id="tableSvg" viewBox="0 0 140 140" width="140" height="140">
-          <circle cx="70" cy="70" r="60" fill="none" stroke="var(--border)" stroke-width="2"/>
-          <line id="tableNeedle" x1="70" y1="70" x2="126" y2="70" stroke="var(--accent)"
-                stroke-width="4" stroke-linecap="round"/>
-          <circle cx="70" cy="70" r="4" fill="var(--accent)"/>
-        </svg>
-        <div class="dial-value" id="tableValue">—</div>
-        <div class="dial-label">Стіл</div>
-      </div>
-
-      <div class="dial-widget">
-        <svg id="servoSvg" viewBox="0 0 140 140" width="140" height="140">
-          <path id="servoTrack" fill="none" stroke="var(--border)" stroke-width="2"/>
-          <line id="servoNeedle" x1="70" y1="70" x2="70" y2="70" stroke="var(--warn)"
-                stroke-width="4" stroke-linecap="round"/>
-          <circle cx="70" cy="70" r="4" fill="var(--warn)"/>
-        </svg>
-        <div class="dial-value" id="servoValue">—</div>
-        <div class="dial-label">Сервотілт</div>
-      </div>
-
-      <div class="dial-widget">
-        <div class="axis-box horizontal" id="yBox"><div class="dial-value" id="yValue">—</div></div>
+    <div class="dials-layout">
+      <div class="dial-widget dial-y-wrap">
+        <div class="axis-box" id="yBox"><div class="dial-value" id="yValue">—</div></div>
         <div class="dial-label">Y (горизонталь)</div>
       </div>
 
-      <div class="dial-widget">
+      <div class="dial-widget dial-z-wrap">
         <div class="axis-box" id="zBox"><div class="dial-value" id="zValue">—</div></div>
         <div class="dial-label">Z (вертикаль)</div>
+      </div>
+
+      <div class="dial-main">
+        <div class="dial-widget dial-servo-wrap">
+          <svg id="servoSvg" viewBox="0 0 140 140">
+            <path id="servoTrack" fill="none" stroke="var(--border)" stroke-width="2"/>
+            <line id="servoNeedle" x1="70" y1="70" x2="70" y2="70" stroke="var(--warn)"
+                  stroke-width="4" stroke-linecap="round"/>
+            <circle cx="70" cy="70" r="4" fill="var(--warn)"/>
+          </svg>
+          <div class="dial-value" id="servoValue">—</div>
+          <div class="dial-label">Сервотілт</div>
+        </div>
+
+        <div class="dial-widget dial-table-wrap">
+          <svg id="tableSvg" viewBox="0 0 200 120" preserveAspectRatio="xMidYMid meet">
+            <ellipse cx="100" cy="60" rx="92" ry="46" fill="none" stroke="var(--border)" stroke-width="2"/>
+            <ellipse cx="100" cy="60" rx="62" ry="31" fill="none" stroke="var(--border)" stroke-width="1"/>
+            <ellipse cx="100" cy="60" rx="32" ry="16" fill="none" stroke="var(--border)" stroke-width="1"/>
+            <line id="tableNeedle" x1="100" y1="60" x2="192" y2="60" stroke="var(--accent)"
+                  stroke-width="4" stroke-linecap="round"/>
+            <circle cx="100" cy="60" r="4" fill="var(--accent)"/>
+          </svg>
+          <div class="dial-value" id="tableValue">—</div>
+          <div class="dial-label">Стіл</div>
+        </div>
       </div>
     </div>
     <p class="foot">Наведіть курсор на елемент і крутіть коліщатко миші, щоб перемістити.</p>
@@ -317,6 +334,21 @@ function setNeedle(lineEl, cx, cy, r, mathDeg) {
   lineEl.setAttribute('y2', y.toFixed(2));
 }
 
+// Table dial is drawn as an ellipse (rx > ry) rather than a circle, to read as a
+// horizontal disc viewed at a slight angle ("isometric") instead of face-on.
+function polarToEllipseXY(cx, cy, rx, ry, mathDeg) {
+  const rad = mathDeg * Math.PI / 180;
+  return { x: cx + rx * Math.cos(rad), y: cy - ry * Math.sin(rad) };
+}
+
+function setEllipseNeedle(lineEl, cx, cy, rx, ry, mathDeg) {
+  const { x, y } = polarToEllipseXY(cx, cy, rx, ry, mathDeg);
+  lineEl.setAttribute('x1', cx);
+  lineEl.setAttribute('y1', cy);
+  lineEl.setAttribute('x2', x.toFixed(2));
+  lineEl.setAttribute('y2', y.toFixed(2));
+}
+
 function buildArcPath(cx, cy, r, fromDeg, toDeg, steps) {
   let d = '';
   for (let i = 0; i <= steps; i++) {
@@ -340,7 +372,7 @@ let latestStatus = null; // for the servo's absolute-target math (current + whee
 
 function updateDials(s) {
   if (s.table !== null && s.table !== undefined) {
-    setNeedle(document.getElementById('tableNeedle'), 70, 70, 50, s.table);
+    setEllipseNeedle(document.getElementById('tableNeedle'), 100, 60, 82, 41, s.table);
     document.getElementById('tableValue').textContent = Math.round(s.table) + '°';
   }
   if (s.servo !== null && s.servo !== undefined) {
@@ -393,12 +425,14 @@ attachWheelCommand(document.getElementById('servoSvg'), 0.05, (delta) => {
   quickSend(`M101 Q${target.toFixed(1)}`);
 });
 
-// Y/Z: relative jog moves. 0.02 => ~2mm per typical wheel click.
-attachWheelCommand(document.getElementById('yBox'), 0.02, (delta) => {
+// Y/Z: relative jog moves. 0.02 => ~2mm per typical wheel click. Sign is inverted
+// (negative sensitivity) vs. the table/servo dials above — scroll-down-to-move-positive
+// felt backwards for these two on the real rig.
+attachWheelCommand(document.getElementById('yBox'), -0.02, (delta) => {
   if (Math.abs(delta) < 0.001) return;
   quickSend(`$J=G91 Y${delta.toFixed(3)} F300`);
 });
-attachWheelCommand(document.getElementById('zBox'), 0.02, (delta) => {
+attachWheelCommand(document.getElementById('zBox'), -0.02, (delta) => {
   if (Math.abs(delta) < 0.001) return;
   quickSend(`$J=G91 Z${delta.toFixed(3)} F300`);
 });
