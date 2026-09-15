@@ -62,12 +62,12 @@
     background: var(--card); touch-action: none; }
   .axis-box .dial-value { font-size: 22px; }
 
-  /* Y (top bar, ~75% width) / Z (right bar, ~75% height) / servo+table (remaining area) */
+  /* Y (top bar, full width) / Z (right bar, under Y) / servo+table (remaining area) */
   .dials-layout { display: grid; grid-template-columns: 76% 1fr; grid-template-rows: 64px 1fr;
-    gap: 10px; height: 62vh; min-height: 380px; }
-  .dial-y-wrap { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; height: 100%; }
+    gap: 10px; height: 43vh; min-height: 266px; }
+  .dial-y-wrap { grid-column: 1 / span 2; grid-row: 1; display: flex; flex-direction: column; height: 100%; }
   .dial-y-wrap .axis-box { flex: 1 1 auto; width: 100%; min-height: 0; }
-  .dial-z-wrap { grid-column: 2; grid-row: 1 / span 2; display: flex; flex-direction: column;
+  .dial-z-wrap { grid-column: 2; grid-row: 2; display: flex; flex-direction: column;
     align-items: center; height: 100%; }
   .dial-z-wrap .axis-box { flex: 0 0 75%; width: 70px; align-self: center; }
   .dial-main { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; gap: 8px;
@@ -111,16 +111,15 @@
   </div>
 
   <div class="card" style="margin-top:12px;">
-    <h2>Джог коліщатком миші</h2>
-    <div class="dials-layout">
+    <div class="dials-layout" title="Наведіть курсор на елемент і крутіть коліщатко миші, щоб перемістити.">
       <div class="dial-widget dial-y-wrap">
         <div class="axis-box" id="yBox"><div class="dial-value" id="yValue">—</div></div>
-        <div class="dial-label">Y (горизонталь)</div>
+        <div class="dial-label">Y</div>
       </div>
 
       <div class="dial-widget dial-z-wrap">
         <div class="axis-box" id="zBox"><div class="dial-value" id="zValue">—</div></div>
-        <div class="dial-label">Z (вертикаль)</div>
+        <div class="dial-label">Z</div>
       </div>
 
       <div class="dial-main">
@@ -132,7 +131,7 @@
             <circle cx="70" cy="70" r="4" fill="var(--warn)"/>
           </svg>
           <div class="dial-value" id="servoValue">—</div>
-          <div class="dial-label">Сервотілт</div>
+          <div class="dial-label">Tilt</div>
         </div>
 
         <div class="dial-widget dial-table-wrap">
@@ -149,7 +148,6 @@
         </div>
       </div>
     </div>
-    <p class="foot">Наведіть курсор на елемент і крутіть коліщатко миші, щоб перемістити.</p>
   </div>
 
   <div class="card" style="margin-top:12px;">
@@ -383,10 +381,10 @@ function updateDials(s) {
     document.getElementById('servoValue').textContent = Math.round(s.servo) + '°';
   }
   if (s.has_wpos && s.wpos[1] !== undefined) {
-    document.getElementById('yValue').textContent = fmt(s.wpos[1]);
+    document.getElementById('yValue').textContent = Math.round(s.wpos[1]);
   }
   if (s.has_wpos && s.wpos[2] !== undefined) {
-    document.getElementById('zValue').textContent = fmt(s.wpos[2]);
+    document.getElementById('zValue').textContent = Math.round(s.wpos[2]);
   }
 }
 
