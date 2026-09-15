@@ -95,6 +95,11 @@ static void handle_status(char *out, size_t cap, http_response_t *resp) {
     } else {
         pos = japp(out, cap, pos, ",\"servo\":null");
     }
+    if (st.wcs[0]) {
+        pos = japp(out, cap, pos, ",\"wcs\":\"%s\"", st.wcs);
+    } else {
+        pos = japp(out, cap, pos, ",\"wcs\":null");
+    }
 
     wifi_mode_t mode = wifi_config_current_mode();
     pos = japp(out, cap, pos,

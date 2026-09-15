@@ -48,6 +48,15 @@ Parsed in `grbl_link.c`'s `parse_status_report()` alongside `MPos`/`WPos`/`FS`, 
 `table`/`table_abs`/`servo` in `/api/status` (`null` if your build doesn't report them),
 and shown on the web page next to the axis positions.
 
+The active work coordinate system (`G54`..`G59.3`) is picked up the same way, from an
+optional `|WCS:G54|` status field — but unlike `TBL`/`ST3215`, grblHAL only includes it
+right after it *changes* (a `G54`-`G59` select, `G10 L2`/`L20`, ...), not on every report,
+same as `WCO` itself. `grbl_link.c` caches the last one seen (same pattern as its `WCO`
+cache) and also seeds it once per USB mount with a one-shot `$G` parser-state query
+(parsing `[GC:G0 G54 G17 ...]` for the `G5x` token), so the web page's "WCS:" readout in
+the status card shows something correct even before any coordinate-system command has
+actually been sent. Exposed as `wcs` in `/api/status` (`null` until known).
+
 ## Building
 
 Requires `arm-none-eabi-gcc`, `cmake`, `python3`, `picotool` (only for `--flash`), and a
@@ -193,7 +202,8 @@ console](docs/jog-dials.png)
 | Tilt (servo) | Partial arc, needle | `M101 Q<absolute>` (current + delta, clamped) | 130°-235° ($451/$452) |
 | Y | Wide bar (top) | `$J=G91 Y<delta> F300` (jog) | — |
 | Z | Tall bar (right edge) | `$J=G91 Z<delta> F300` (jog) | — |
-| ← / → (in the Y bar) | Small round buttons, left/right edge of the Y bar | `$J=G91 Y-50 F600` / `$J=G91 Y50 F600` — a fixed 50mm jog, one click | — |
+| ← / → (in the Y bar) | Small round buttons, left/right edge of the Y bar | `$J=G91 Y50 F600` / `$J=G91 Y-50 F600` — a fixed 50mm jog, one click | — |
+| 0 (in the Y bar) | Small accent-colored button, bottom-right corner of the Y bar | `G54` then `G10 L20 P1 Y0` — zero Y in G54 | — |
 
 The turntable is drawn as a flat ellipse (`rx` >> `ry`, `polarToEllipseXY()`) rather than
 a plain circle, since it's a table lying flat and this gives it an isometric look instead
@@ -243,7 +253,7 @@ All bodies are plain text (no JSON payloads to build by hand), responses are JSO
 | Method | Path | Body | Notes |
 |---|---|---|---|
 | GET | `/` | — | The web UI |
-| GET | `/api/status` | — | `{connected, status, naxes, mpos[], has_wpos, wpos[], feed, speed, alarm, table, table_abs, servo, wifi_mode, ap_ssid, last_status_ms, console[], console_filtered[]}` |
+| GET | `/api/status` | — | `{connected, status, naxes, mpos[], has_wpos, wpos[], feed, speed, alarm, table, table_abs, servo, wcs, wifi_mode, ap_ssid, last_status_ms, console[], console_filtered[]}` |
 | POST | `/api/gcode` | one command per line | Queued and sent to grblHAL one line at a time; `{total, queued, rejected}` |
 | POST | `/api/hold` | — | Real-time feed hold (`!`) |
 | POST | `/api/resume` | — | Real-time cycle resume (`~`) |

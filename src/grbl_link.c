@@ -35,6 +35,14 @@ static bool have_last_wco;
 // log even if the status word itself didn't change, as a "here's where things stand
 // right after that" confirmation.
 static bool force_next_status_log;
+// Active work coordinate system (G54..G59.3): like WCO, grblHAL only reports it (as
+// '|WCS:') right after it changes (G54-G59 select, G10 L2/L20, ...), not on every '?'
+// report — cache the last one seen the same way. Also seeded once per mount via a '$G'
+// parser-state query (see need_g_query below), so the UI shows something correct even
+// before the user ever issues a coordinate-system-changing command.
+static char last_wcs[GRBL_WCS_LEN];
+static bool have_last_wcs;
+static bool need_g_query;
 
 static int parse_csv_floats(char *s, float *out, int max) {
     int n = 0;
@@ -76,6 +84,8 @@ static void parse_status_report(const char *raw) {
     bool have_mpos = false, have_wpos = false, have_wco = false;
     float table_deg = 0, table_abs_deg = 0, servo_deg = 0;
     bool have_table = false, have_table_abs = false, have_servo = false;
+    char wcs_buf[GRBL_WCS_LEN] = {0};
+    bool have_wcs = false;
 
     tok = strtok_r(NULL, "|", &save);
     while (tok) {
@@ -104,6 +114,10 @@ static void parse_status_report(const char *raw) {
                 have_table_abs = parse_csv_floats(val, &table_abs_deg, 1) > 0;
             } else if (strcmp(key, "ST3215") == 0) {
                 have_servo = parse_csv_floats(val, &servo_deg, 1) > 0;
+            } else if (strcmp(key, "WCS") == 0) {
+                strncpy(wcs_buf, val, sizeof(wcs_buf) - 1);
+                wcs_buf[sizeof(wcs_buf) - 1] = '\0';
+                have_wcs = true;
             }
             // Ov/Bf/Pn/Ln and other optional fields are left for a later iteration.
         }
@@ -118,6 +132,15 @@ static void parse_status_report(const char *raw) {
         memcpy(last_wco, wco, sizeof(wco));
         last_wco_count = n_wco;
         have_last_wco = true;
+    }
+    if (have_wcs) {
+        strncpy(last_wcs, wcs_buf, sizeof(last_wcs) - 1);
+        last_wcs[sizeof(last_wcs) - 1] = '\0';
+        have_last_wcs = true;
+    }
+    if (have_last_wcs) {
+        strncpy(ns.wcs, last_wcs, sizeof(ns.wcs) - 1);
+        ns.wcs[sizeof(ns.wcs) - 1] = '\0';
     }
 
     if (have_wpos) {
@@ -162,6 +185,33 @@ static void parse_status_report(const char *raw) {
     shared_state_set_status(&ns);
 }
 
+// Parses a '$G' parser-state reply, e.g. '[GC:G0 G54 G17 G21 G90 G94 M0 M5 M9 T0 F0 S0]',
+// for its active work coordinate system word (G54..G59.3) — used once per mount to seed
+// last_wcs before any G54-G59 command has actually been issued (see need_g_query).
+static void parse_gc_wcs(const char *line) {
+    char buf[96];
+    strncpy(buf, line, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+
+    char *save = NULL;
+    char *tok = strtok_r(buf, " []", &save);
+    while (tok) {
+        const char *word = strchr(tok, ':'); // strips a leading "GC:" off the first token
+        word = word ? word + 1 : tok;
+        if (word[0] == 'G') {
+            char *end = NULL;
+            long val = strtol(word + 1, &end, 10);
+            if (val >= 54 && val <= 59 && (*end == '\0' || *end == '.')) {
+                strncpy(last_wcs, word, sizeof(last_wcs) - 1);
+                last_wcs[sizeof(last_wcs) - 1] = '\0';
+                have_last_wcs = true;
+                return;
+            }
+        }
+        tok = strtok_r(NULL, " []", &save);
+    }
+}
+
 static void on_line(const char *line) {
     // Full log: absolutely everything, unfiltered.
     shared_state_console_push(line);
@@ -177,6 +227,10 @@ static void on_line(const char *line) {
 
     // Filtered log: everything else — ok/error/ALARM/messages/banners/$$ dumps.
     shared_state_filtered_push(line);
+
+    if (strncmp(line, "[GC:", 4) == 0) {
+        parse_gc_wcs(line);
+    }
 
     if (strcmp(line, "ok") == 0) {
         waiting_ok = false;
@@ -201,6 +255,7 @@ static void on_line(const char *line) {
 static void on_mount(bool mounted) {
     shared_state_set_connected(mounted);
     waiting_ok = false;
+    if (mounted) need_g_query = true; // re-seed the active WCS on every (re)connect
     shared_state_console_push(mounted ? "[link] grblHAL connected" : "[link] grblHAL disconnected");
 }
 
@@ -244,6 +299,15 @@ void grbl_link_core1_main(void) {
         if (waiting_ok && time_reached(waiting_deadline)) {
             shared_state_console_push("[link] timed out waiting for ok, resuming queue");
             waiting_ok = false;
+        }
+
+        if (mounted && !waiting_ok && need_g_query) {
+            static const char g_query[] = "$G\n";
+            if (usb_host_cdc_write((const uint8_t *) g_query, sizeof(g_query) - 1)) {
+                need_g_query = false;
+                waiting_ok = true;
+                waiting_deadline = make_timeout_time_ms(LINE_TIMEOUT_MS);
+            }
         }
 
         if (mounted && !waiting_ok) {

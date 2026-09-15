@@ -123,6 +123,11 @@
     padding: 0; cursor: pointer; z-index: 1; }
   .jog-btn-left { left: 8px; }
   .jog-btn-right { right: 8px; }
+  /* Hangs half off the Y bar's own bottom-right corner — "under the bar, on the right". */
+  .zero-y-btn { position: absolute; right: 44px; bottom: -13px; width: 24px; height: 24px;
+    border-radius: 50%; border: 2px solid var(--accent); background: var(--card); color: var(--accent);
+    font-size: 12px; font-weight: 700; line-height: 1; display: flex; align-items: center;
+    justify-content: center; padding: 0; cursor: pointer; z-index: 2; }
 </style>
 </head>
 <body>
@@ -134,7 +139,8 @@
     <div class="card">
       <h2>Стан</h2>
       <p><span id="connDot" class="conn-dot"></span><span id="connText">—</span>
-         &nbsp; <span id="statusPill" class="status-pill">—</span></p>
+         &nbsp; <span id="statusPill" class="status-pill">—</span>
+         &nbsp; WCS: <b id="wcsVal">—</b></p>
       <table class="pos" id="posTable"></table>
       <table class="pos" id="rigTable"></table>
       <p>Feed: <b id="feedVal">0</b> &nbsp; Speed: <b id="speedVal">0</b></p>
@@ -163,10 +169,12 @@
         <div class="axis-box" id="yBox">
           <span class="dial-badge">Y</span>
           <button type="button" class="jog-btn jog-btn-left" id="yLeftBtn"
-                  title="Перемістити на 50 мм ліворуч (Y-50, F600)">←</button>
+                  title="Перемістити на 50 мм ліворуч (Y+50, F600)">←</button>
           <div class="dial-value" id="yValue">—</div>
           <button type="button" class="jog-btn jog-btn-right" id="yRightBtn"
-                  title="Перемістити на 50 мм праворуч (Y+50, F600)">→</button>
+                  title="Перемістити на 50 мм праворуч (Y-50, F600)">→</button>
+          <button type="button" class="zero-y-btn" id="yZeroBtn"
+                  title="Занулити Y (в G54, перемикнувши на нього за потреби): G10 L20 P1 Y0">0</button>
         </div>
       </div>
 
@@ -321,6 +329,8 @@ async function refreshStatus() {
     const pill = document.getElementById('statusPill');
     pill.textContent = stale ? '' : (s.status || '—');
     pill.className = 'status-pill' + (stale ? '' : ' status-' + String(s.status || '').toLowerCase());
+
+    document.getElementById('wcsVal').textContent = (!stale && s.wcs) ? s.wcs : '—';
 
     const t = document.getElementById('posTable');
     let rows = '';
@@ -532,11 +542,11 @@ attachWheelCommand(document.getElementById('servoSvg'), 0.05, (delta) => {
   quickSend(`M101 Q${target.toFixed(1)}`);
 });
 
-// Y/Z: relative jog moves. 0.02 => ~2mm per typical wheel click (Y bumped to 0.16 per
-// user request — 2x, then 4x more on top of that — Z unchanged). Sign is inverted
-// (negative sensitivity) vs. the table/servo dials above — scroll-down-to-move-positive
-// felt backwards for these two on the real rig.
-attachWheelCommand(document.getElementById('yBox'), -0.16, (delta) => {
+// Y/Z: relative jog moves. 0.02 => ~2mm per typical wheel click (Y doubled to 0.04 per
+// user request — a later 4x-on-top-of-that bump was reverted back to this — Z unchanged).
+// Sign is inverted (negative sensitivity) vs. the table/servo dials above —
+// scroll-down-to-move-positive felt backwards for these two on the real rig.
+attachWheelCommand(document.getElementById('yBox'), -0.04, (delta) => {
   if (Math.abs(delta) < 0.001) return;
   quickSend(`$J=G91 Y${delta.toFixed(3)} F300`);
 });
@@ -546,8 +556,16 @@ attachWheelCommand(document.getElementById('zBox'), -0.02, (delta) => {
 });
 
 // Fixed-distance Y jog shortcuts (50mm @ F600) — separate from the wheel nudge above.
-document.getElementById('yLeftBtn').addEventListener('click', () => quickSend('$J=G91 Y-50 F600'));
-document.getElementById('yRightBtn').addEventListener('click', () => quickSend('$J=G91 Y50 F600'));
+document.getElementById('yLeftBtn').addEventListener('click', () => quickSend('$J=G91 Y50 F600'));
+document.getElementById('yRightBtn').addEventListener('click', () => quickSend('$J=G91 Y-50 F600'));
+
+// Zero Y: G54 first (harmless no-op if already active) so the machine is actually in
+// that system before G10 L20 sets its offset — setting G54's offset while some other
+// WCS is active wouldn't zero what the user is currently looking at.
+document.getElementById('yZeroBtn').addEventListener('click', async () => {
+  await api('/api/gcode', { method: 'POST', body: 'G54\nG10 L20 P1 Y0' });
+  refreshStatus();
+});
 
 function escapeHtml(s) {
   return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));

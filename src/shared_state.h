@@ -16,6 +16,7 @@
 #define GRBL_MAX_AXES 6
 #define GRBL_STATUS_LEN 16
 #define GRBL_ALARM_LEN 80
+#define GRBL_WCS_LEN 8 // "G54".."G59", "G59.1".."G59.3"
 #define CONSOLE_LOG_LINES 32
 #define CONSOLE_LOG_LINE_LEN 120 // fits a typical raw status report (TBL/TBLABS/ST3215) with margin
 #define GCODE_QUEUE_DEPTH 32
@@ -38,6 +39,7 @@ typedef struct {
     float table_abs_deg; // TBLABS: turntable angle, unwrapped total rotation
     bool has_servo;
     float servo_deg;     // ST3215: tilt servo angle
+    char wcs[GRBL_WCS_LEN]; // active work coordinate system ("G54".."G59.3"), empty if unknown
     char alarm[GRBL_ALARM_LEN]; // last ALARM:/error: text; cleared by the next user command
     uint32_t last_status_ms;    // board uptime (ms) of the last parsed '?' report
 } machine_state_t;
