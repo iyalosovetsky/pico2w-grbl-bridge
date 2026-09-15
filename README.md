@@ -203,9 +203,11 @@ console](docs/jog-dials.png)
 | Y | Wide bar (top) | `$J=G91 Y<delta> F300` (jog) | — |
 | Z | Tall bar (right edge) | `$J=G91 Z<delta> F300` (jog) | — |
 | ← / → (in the Y bar) | Small round buttons, left/right edge of the Y bar | `$J=G91 Y50 F3000` / `$J=G91 Y-50 F3000` — a fixed 50mm jog, one click | — |
-| 0 (in the Y bar) | Small accent-colored button, bottom-right corner of the Y bar | `G54` then `G10 L20 P1 Y0` — zero Y in G54 | — |
+| 0 (in the Y bar) | Small accent-colored button, bottom-right corner of the Y bar | `G54` then `G10 L20 P1 Y0` — zero Y in G54 (redefines zero here, doesn't move) | — |
+| ⌂ (in the Y bar) | Small accent-colored button, bottom-left corner of the Y bar | `$J=G90 Y0 F3000` — go to Y zero (actually moves there, in whatever WCS is active) | — |
 | ↑ / ↓ (in the Z bar) | Small round buttons, top/bottom edge of the Z bar | `$J=G91 Z20 F600` / `$J=G91 Z-20 F600` — a fixed 20mm jog, one click | — |
-| 0 (in the Z bar) | Small accent-colored button, bottom-right corner of the Z bar | `G54` then `G10 L20 P1 Z0` — zero Z in G54 | — |
+| 0 (in the Z bar) | Small accent-colored button, bottom-right corner of the Z bar | `G54` then `G10 L20 P1 Z0` — zero Z in G54 (redefines zero here, doesn't move) | — |
+| ⌂ (in the Z bar) | Small accent-colored button, bottom-left corner of the Z bar | `$J=G90 Z0 F600` — go to Z zero (actually moves there, in whatever WCS is active) | — |
 
 F3000 on the ←/→ buttons isn't arbitrary — it matches this rig's Y-axis `$111` (max
 rate) setting, raised from its default 1000 to 3000 directly on the grblHAL controller

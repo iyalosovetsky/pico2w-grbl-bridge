@@ -70,6 +70,9 @@
      Y's left button sits right under it, and Z's up button is dead center over it. */
   .dial-badge-y { left: 44px; }
   .dial-badge-z { top: 42px; left: 50%; transform: translateX(-50%); }
+  /* The Y bar's corner buttons (⌂/0) hang 32px below it, landing right where this
+     widget's own top-left corner starts — pushed down to clear them. */
+  .dial-badge-table { top: 30px; }
   .axis-box { position: relative; border: 2px solid var(--border); border-radius: 10px;
     display: flex; align-items: center; justify-content: center; cursor: ns-resize;
     background: var(--dial-fill); touch-action: none; }
@@ -138,6 +141,13 @@
     border-radius: 50%; border: 2px solid var(--accent); background: var(--card); color: var(--accent);
     font-size: 12px; font-weight: 700; line-height: 1; display: flex; align-items: center;
     justify-content: center; padding: 0; cursor: pointer; z-index: 2; }
+  /* "Go to zero" (moves there) mirrored onto the bottom-left corner, opposite "0" (which
+     just redefines zero at the current position without moving) on the bottom-right —
+     same size/shape so they read as a pair, distinct glyph so they're not confused. */
+  .home-btn { position: absolute; left: 8px; bottom: -32px; width: 24px; height: 24px;
+    border-radius: 50%; border: 2px solid var(--accent); background: var(--card); color: var(--accent);
+    font-size: 13px; line-height: 1; display: flex; align-items: center;
+    justify-content: center; padding: 0; cursor: pointer; z-index: 2; }
 </style>
 </head>
 <body>
@@ -185,6 +195,8 @@
                   title="Перемістити на 50 мм праворуч (Y-50, F3000)">→</button>
           <button type="button" class="zero-y-btn" id="yZeroBtn"
                   title="Занулити Y (в G54, перемикнувши на нього за потреби): G10 L20 P1 Y0">0</button>
+          <button type="button" class="home-btn" id="yHomeBtn"
+                  title="Перемістити в нуль Y (в поточній системі координат): $J=G90 Y0">⌂</button>
         </div>
       </div>
 
@@ -198,6 +210,8 @@
                   title="Перемістити на 20 мм вниз (Z-20, F600)">↓</button>
           <button type="button" class="zero-y-btn" id="zZeroBtn"
                   title="Занулити Z (в G54, перемикнувши на нього за потреби): G10 L20 P1 Z0">0</button>
+          <button type="button" class="home-btn" id="zHomeBtn"
+                  title="Перемістити в нуль Z (в поточній системі координат): $J=G90 Z0">⌂</button>
         </div>
       </div>
 
@@ -215,7 +229,7 @@
         </div>
 
         <div class="dial-widget dial-table-wrap">
-          <span class="dial-badge">Стіл</span>
+          <span class="dial-badge dial-badge-table">Стіл</span>
           <svg id="tableSvg" viewBox="0 0 200 70" preserveAspectRatio="xMidYMid meet">
             <ellipse cx="100" cy="35" rx="94" ry="32" fill="var(--dial-fill)" stroke="var(--border)" stroke-width="2"/>
             <ellipse cx="100" cy="35" rx="63" ry="21" fill="none" stroke="var(--border)" stroke-width="1"/>
@@ -628,10 +642,17 @@ document.getElementById('yRightBtn').addEventListener('click', () => quickSend('
 // WCS is active wouldn't zero what the user is currently looking at.
 document.getElementById('yZeroBtn').addEventListener('click', () => sendGcodeBody('G54\nG10 L20 P1 Y0'));
 
+// Go to Y zero: actually moves there (G90 = absolute, just for this one jog move) —
+// different from the "0" button above, which redefines zero at the current position
+// without moving anything. Left unforced to whatever WCS is already active (unlike the
+// "0" button, this isn't a configuration change, so no reason to switch it to G54).
+document.getElementById('yHomeBtn').addEventListener('click', () => quickSend('$J=G90 Y0 F3000'));
+
 // Same as above for Z: fixed 20mm up/down jog and a zero-in-G54 button.
 document.getElementById('zUpBtn').addEventListener('click', () => quickSend('$J=G91 Z20 F600'));
 document.getElementById('zDownBtn').addEventListener('click', () => quickSend('$J=G91 Z-20 F600'));
 document.getElementById('zZeroBtn').addEventListener('click', () => sendGcodeBody('G54\nG10 L20 P1 Z0'));
+document.getElementById('zHomeBtn').addEventListener('click', () => quickSend('$J=G90 Z0 F600'));
 
 function escapeHtml(s) {
   return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
