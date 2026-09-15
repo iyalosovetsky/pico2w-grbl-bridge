@@ -176,32 +176,30 @@ picks them up automatically.
 
 ## Jog dials
 
-The web page's "Джог коліщатком миші" card lets you nudge all four moving parts with
-the mouse wheel instead of typing G-code — hover a widget and scroll. The card is laid
-out like the rig itself: a wide **Y** bar across the top, a tall **Z** bar down the
-right edge, and underneath the Y bar (filling the rest of the space) the tilt servo's
-circle sitting above the turntable's ellipse:
+The web page's jog card lets you nudge all four moving parts with the mouse wheel
+instead of typing G-code — hover a widget and scroll (a hover tooltip on the card
+itself repeats this). The card is laid out like the rig itself: a wide **Y** bar across
+the top, a tall **Z** bar down the right edge, and underneath the Y bar the tilt servo's
+circle tucked into the top-right corner with the turntable's ellipse spreading out
+beneath/behind it to fill the rest of the space:
 
-```
-+----------------------------------------+---+
-|                  Y bar                  | Z |
-+----------------------------------------+ b |
-|              Сервотілт (circle)         | a |
-|                                          | r |
-|             Стіл (ellipse)               |   |
-+----------------------------------------+---+
-```
+![Jog dials card — Y bar on top, Z bar on the right, tilt circle tucked into the top-right
+corner, turntable ellipse filling the rest](docs/jog-dials.png)
 
 | Widget | Shape | Sends | Range |
 |---|---|---|---|
 | Стіл (turntable) | Elongated ellipse, needle | `M104 Q<delta>` (relative — grblHAL accumulates it) | none (continuous rotation) |
-| Сервотілт (tilt servo) | Partial arc, needle | `M101 Q<absolute>` (current + delta, clamped) | 130°-235° ($451/$452) |
+| Tilt (servo) | Partial arc, needle | `M101 Q<absolute>` (current + delta, clamped) | 130°-235° ($451/$452) |
 | Y | Wide bar (top) | `$J=G91 Y<delta> F300` (jog) | — |
 | Z | Tall bar (right edge) | `$J=G91 Z<delta> F300` (jog) | — |
 
-The turntable is drawn as an ellipse (`rx` > `ry`, `polarToEllipseXY()`) rather than a
-plain circle, since it's a table lying flat and this gives it an isometric look instead
-of a face-on one.
+The turntable is drawn as a flat ellipse (`rx` >> `ry`, `polarToEllipseXY()`) rather than
+a plain circle, since it's a table lying flat and this gives it an isometric look instead
+of a face-on one. It's absolutely positioned to share the same box as the tilt circle
+(`.dial-main` in `web/index.html`) instead of stacking below it in a flex row — an oval
+doesn't fill the rectangular corner it sits in, so it spreads underneath/behind that
+corner and uses nearly the whole card instead of just the leftover strip beneath the
+circle.
 
 All four debounce wheel input (~220ms after you stop scrolling) into a single command
 per gesture rather than one per wheel tick — `attachWheelCommand()` in `web/index.html`.
