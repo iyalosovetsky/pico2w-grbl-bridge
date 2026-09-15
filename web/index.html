@@ -115,6 +115,13 @@
     border-radius: 50%; border: 2px solid var(--err); background: var(--card); color: var(--err);
     font-size: 10px; display: flex; align-items: center; justify-content: center;
     padding: 0; cursor: pointer; z-index: 1; }
+  /* Fixed 50mm/F600 jog shortcuts flanking the Y bar's value. */
+  .jog-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 30px; height: 30px;
+    border-radius: 50%; border: 2px solid var(--border); background: var(--card); color: var(--fg);
+    font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center;
+    padding: 0; cursor: pointer; z-index: 1; }
+  .jog-btn-left { left: 8px; }
+  .jog-btn-right { right: 8px; }
 </style>
 </head>
 <body>
@@ -154,7 +161,11 @@
       <div class="dial-widget dial-y-wrap">
         <div class="axis-box" id="yBox">
           <span class="dial-badge">Y</span>
+          <button type="button" class="jog-btn jog-btn-left" id="yLeftBtn"
+                  title="Перемістити на 50 мм ліворуч (Y-50, F600)">←</button>
           <div class="dial-value" id="yValue">—</div>
+          <button type="button" class="jog-btn jog-btn-right" id="yRightBtn"
+                  title="Перемістити на 50 мм праворуч (Y+50, F600)">→</button>
         </div>
       </div>
 
@@ -528,6 +539,10 @@ attachWheelCommand(document.getElementById('zBox'), -0.02, (delta) => {
   if (Math.abs(delta) < 0.001) return;
   quickSend(`$J=G91 Z${delta.toFixed(3)} F300`);
 });
+
+// Fixed-distance Y jog shortcuts (50mm @ F600) — separate from the wheel nudge above.
+document.getElementById('yLeftBtn').addEventListener('click', () => quickSend('$J=G91 Y-50 F600'));
+document.getElementById('yRightBtn').addEventListener('click', () => quickSend('$J=G91 Y50 F600'));
 
 function escapeHtml(s) {
   return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));

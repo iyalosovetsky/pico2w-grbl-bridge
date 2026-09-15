@@ -193,6 +193,7 @@ console](docs/jog-dials.png)
 | Tilt (servo) | Partial arc, needle | `M101 Q<absolute>` (current + delta, clamped) | 130°-235° ($451/$452) |
 | Y | Wide bar (top) | `$J=G91 Y<delta> F300` (jog) | — |
 | Z | Tall bar (right edge) | `$J=G91 Z<delta> F300` (jog) | — |
+| ← / → (in the Y bar) | Small round buttons, left/right edge of the Y bar | `$J=G91 Y-50 F600` / `$J=G91 Y50 F600` — a fixed 50mm jog, one click | — |
 
 The turntable is drawn as a flat ellipse (`rx` >> `ry`, `polarToEllipseXY()`) rather than
 a plain circle, since it's a table lying flat and this gives it an isometric look instead
