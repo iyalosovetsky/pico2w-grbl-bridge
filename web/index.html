@@ -56,8 +56,13 @@
   .dial-widget { display: flex; flex-direction: column; align-items: center; gap: 2px; user-select: none; }
   .dial-widget svg { touch-action: none; cursor: ns-resize; }
   .dial-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
-  .dial-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
-  .axis-box { border: 2px solid var(--border); border-radius: 10px;
+  /* Small pill overlaid on the widget's own corner instead of a caption line taking up
+     its own row below — same info, less visual clutter. */
+  .dial-badge { position: absolute; top: 6px; left: 10px; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+    background: rgba(127,127,127,.15); padding: 2px 7px; border-radius: 999px;
+    pointer-events: none; line-height: 1.4; }
+  .axis-box { position: relative; border: 2px solid var(--border); border-radius: 10px;
     display: flex; align-items: center; justify-content: center; cursor: ns-resize;
     background: var(--card); touch-action: none; }
   .axis-box .dial-value { font-size: 22px; }
@@ -90,7 +95,7 @@
      below leave available. Shifted left a touch so its tip clears the tilt circle. */
   .dial-table-wrap svg { width: auto; flex: 1 1 auto; min-height: 70px; max-width: 100%;
     display: block; transform: translateX(-16px); }
-  .dial-table-wrap .dial-value, .dial-table-wrap .dial-label { flex: 0 0 auto; }
+  .dial-table-wrap .dial-value { flex: 0 0 auto; }
 </style>
 </head>
 <body>
@@ -128,17 +133,22 @@
   <div class="card" style="margin-top:12px;">
     <div class="dials-layout" title="Наведіть курсор на елемент і крутіть коліщатко миші, щоб перемістити.">
       <div class="dial-widget dial-y-wrap">
-        <div class="axis-box" id="yBox"><div class="dial-value" id="yValue">—</div></div>
-        <div class="dial-label">Y</div>
+        <div class="axis-box" id="yBox">
+          <span class="dial-badge">Y</span>
+          <div class="dial-value" id="yValue">—</div>
+        </div>
       </div>
 
       <div class="dial-widget dial-z-wrap">
-        <div class="axis-box" id="zBox"><div class="dial-value" id="zValue">—</div></div>
-        <div class="dial-label">Z</div>
+        <div class="axis-box" id="zBox">
+          <span class="dial-badge">Z</span>
+          <div class="dial-value" id="zValue">—</div>
+        </div>
       </div>
 
       <div class="dial-main">
         <div class="dial-widget dial-servo-wrap">
+          <span class="dial-badge">Tilt</span>
           <svg id="servoSvg" viewBox="0 0 140 140">
             <path id="servoTrack" fill="none" stroke="var(--border)" stroke-width="2"/>
             <line id="servoNeedle" x1="70" y1="70" x2="70" y2="70" stroke="var(--warn)"
@@ -146,10 +156,10 @@
             <circle cx="70" cy="70" r="4" fill="var(--warn)"/>
           </svg>
           <div class="dial-value" id="servoValue">—</div>
-          <div class="dial-label">Tilt</div>
         </div>
 
         <div class="dial-widget dial-table-wrap">
+          <span class="dial-badge">Стіл</span>
           <svg id="tableSvg" viewBox="0 0 200 70" preserveAspectRatio="xMidYMid meet">
             <ellipse cx="100" cy="35" rx="94" ry="32" fill="none" stroke="var(--border)" stroke-width="2"/>
             <ellipse cx="100" cy="35" rx="63" ry="21" fill="none" stroke="var(--border)" stroke-width="1"/>
@@ -159,7 +169,6 @@
             <circle cx="100" cy="35" r="4" fill="var(--accent)"/>
           </svg>
           <div class="dial-value" id="tableValue">—</div>
-          <div class="dial-label">Стіл</div>
         </div>
       </div>
     </div>
