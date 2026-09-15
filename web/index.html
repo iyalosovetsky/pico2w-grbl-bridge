@@ -66,6 +66,10 @@
     text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
     background: rgba(127,127,127,.15); padding: 2px 7px; border-radius: 999px;
     pointer-events: none; line-height: 1.4; }
+  /* The default top-left corner spot collides with the jog buttons on these two bars —
+     Y's left button sits right under it, and Z's up button is dead center over it. */
+  .dial-badge-y { left: 44px; }
+  .dial-badge-z { top: 42px; left: 50%; transform: translateX(-50%); }
   .axis-box { position: relative; border: 2px solid var(--border); border-radius: 10px;
     display: flex; align-items: center; justify-content: center; cursor: ns-resize;
     background: var(--dial-fill); touch-action: none; }
@@ -128,14 +132,12 @@
      height and both top and bottom set, top wins and bottom is silently ignored. */
   .jog-btn-up { top: 8px; left: 50%; transform: translateX(-50%); }
   .jog-btn-down { top: auto; bottom: 8px; left: 50%; transform: translateX(-50%); }
-  /* Hangs half off the bar's own bottom-right corner. */
-  .zero-y-btn { position: absolute; right: 44px; bottom: -13px; width: 24px; height: 24px;
+  /* Sits fully below the bar's own bottom-right corner — bottom:-32px clears this
+     24px-tall button entirely clear of the bar (8px gap) instead of overlapping it. */
+  .zero-y-btn { position: absolute; right: 8px; bottom: -32px; width: 24px; height: 24px;
     border-radius: 50%; border: 2px solid var(--accent); background: var(--card); color: var(--accent);
     font-size: 12px; font-weight: 700; line-height: 1; display: flex; align-items: center;
     justify-content: center; padding: 0; cursor: pointer; z-index: 2; }
-  /* The Z bar is too narrow (70px) for the Y zero-button's left offset — hang it off the
-     corner itself instead. */
-  .zero-z-btn { right: -8px; bottom: -13px; }
 </style>
 </head>
 <body>
@@ -175,7 +177,7 @@
     <div class="dials-layout" title="Наведіть курсор на елемент і крутіть коліщатко миші, щоб перемістити.">
       <div class="dial-widget dial-y-wrap">
         <div class="axis-box" id="yBox">
-          <span class="dial-badge">Y</span>
+          <span class="dial-badge dial-badge-y">Y</span>
           <button type="button" class="jog-btn jog-btn-left" id="yLeftBtn"
                   title="Перемістити на 50 мм ліворуч (Y+50, F3000)">←</button>
           <div class="dial-value" id="yValue">—</div>
@@ -188,13 +190,13 @@
 
       <div class="dial-widget dial-z-wrap">
         <div class="axis-box" id="zBox">
-          <span class="dial-badge">Z</span>
+          <span class="dial-badge dial-badge-z">Z</span>
           <button type="button" class="jog-btn jog-btn-up" id="zUpBtn"
                   title="Перемістити на 20 мм вгору (Z+20, F600)">↑</button>
           <div class="dial-value" id="zValue">—</div>
           <button type="button" class="jog-btn jog-btn-down" id="zDownBtn"
                   title="Перемістити на 20 мм вниз (Z-20, F600)">↓</button>
-          <button type="button" class="zero-y-btn zero-z-btn" id="zZeroBtn"
+          <button type="button" class="zero-y-btn" id="zZeroBtn"
                   title="Занулити Z (в G54, перемикнувши на нього за потреби): G10 L20 P1 Z0">0</button>
         </div>
       </div>
