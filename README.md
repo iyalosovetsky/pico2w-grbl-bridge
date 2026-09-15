@@ -174,6 +174,49 @@ Two ways to give the bridge WiFi credentials, and they compose:
 `WIFI_PASSWORD` as environment variables instead if that matters to you — `build.sh`
 picks them up automatically.
 
+## Jog dials
+
+The web page's "Джог коліщатком миші" card lets you nudge all four moving parts with
+the mouse wheel instead of typing G-code — hover a widget and scroll. The card is laid
+out like the rig itself: a wide **Y** bar across the top, a tall **Z** bar down the
+right edge, and underneath the Y bar (filling the rest of the space) the tilt servo's
+circle sitting above the turntable's ellipse:
+
+```
++----------------------------------------+---+
+|                  Y bar                  | Z |
++----------------------------------------+ b |
+|              Сервотілт (circle)         | a |
+|                                          | r |
+|             Стіл (ellipse)               |   |
++----------------------------------------+---+
+```
+
+| Widget | Shape | Sends | Range |
+|---|---|---|---|
+| Стіл (turntable) | Elongated ellipse, needle | `M104 Q<delta>` (relative — grblHAL accumulates it) | none (continuous rotation) |
+| Сервотілт (tilt servo) | Partial arc, needle | `M101 Q<absolute>` (current + delta, clamped) | 130°-235° ($451/$452) |
+| Y | Wide bar (top) | `$J=G91 Y<delta> F300` (jog) | — |
+| Z | Tall bar (right edge) | `$J=G91 Z<delta> F300` (jog) | — |
+
+The turntable is drawn as an ellipse (`rx` > `ry`, `polarToEllipseXY()`) rather than a
+plain circle, since it's a table lying flat and this gives it an isometric look instead
+of a face-on one.
+
+All four debounce wheel input (~220ms after you stop scrolling) into a single command
+per gesture rather than one per wheel tick — `attachWheelCommand()` in `web/index.html`.
+For the turntable and servo, scrolling away from you (up) decreases the angle; toward
+you (down) increases it. **Y and Z are inverted relative to that** (their
+`attachWheelCommand()` calls pass a negative sensitivity) — toward you (down) moves
+negative, away from you (up) moves positive.
+
+The two circular dials share one screen-angle convention (`polarToXY()`): 0° points
+right (3 o'clock / positive X-axis, not 12 o'clock), and increasing angle sweeps
+**counter-clockwise** — standard math convention, not clock convention. The servo's arc
+maps its hardware range onto clock-face positions per this rig's actual travel (130° =
+scanner horizontal = "9:30", 235° = scanner down = "5:00"), swept through the bottom of
+the dial rather than the top.
+
 ## REST API
 
 All bodies are plain text (no JSON payloads to build by hand), responses are JSON.
