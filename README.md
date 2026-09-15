@@ -202,6 +202,25 @@ doesn't fill the rectangular corner it sits in, so it spreads underneath/behind 
 corner and uses nearly the whole card instead of just the leftover strip beneath the
 circle.
 
+### Continuous rotation
+
+Below the turntable ellipse are three more controls, for spinning it indefinitely
+instead of nudging it by a fixed amount — separate from the M104 wheel-jog above:
+
+| Button | Position | Sends |
+|---|---|---|
+| ↺ | bottom-left | `M102 P1` — start spinning CCW; click again to stop |
+| ↻ | bottom-right (of the ellipse) | `M102 P0` — start spinning CW; click again to stop |
+| ■ | bottom-right corner (of the whole widget) | `M103` — stop unconditionally, regardless of tracked state |
+
+Clicking one direction while the other is already spinning just switches direction
+(grblHAL's `M102` takes over the motor immediately, no need to stop first). The active
+direction button is highlighted (`.rotate-btn.active` in `web/index.html`); that
+highlight — and the underlying `tableRotation` JS state it reflects — is client-side
+only (the status report has no "is spinning continuously" field to poll), so it's also
+cleared whenever the wheel-jog or a soft reset is used, since both actually stop the
+motor on the real hardware regardless of what the buttons last did.
+
 All four debounce wheel input (~220ms after you stop scrolling) into a single command
 per gesture rather than one per wheel tick — `attachWheelCommand()` in `web/index.html`.
 For the turntable and servo, scrolling away from you (up) decreases the angle; toward

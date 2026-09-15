@@ -99,6 +99,22 @@
   .dial-table-wrap svg { width: auto; flex: 1 1 auto; min-height: 70px; max-width: 100%;
     display: block; transform: translateX(-16px); }
   .dial-table-wrap .dial-value { flex: 0 0 auto; }
+  /* Left/right continuous-rotation buttons flank the angle readout, roughly under the
+     ellipse's left/right tips. padding-right clears the tilt circle's corner (it pokes
+     out to right:-14px at 100px wide, i.e. ~86px past this box's own right edge) so the
+     right button doesn't end up sitting underneath it. */
+  .table-controls { flex: 0 0 auto; width: 100%; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 6px; padding-right: 96px; }
+  .rotate-btn { width: 32px; height: 32px; border-radius: 50%; border: 2px solid var(--border);
+    background: var(--dial-fill); color: var(--fg); font-size: 18px; line-height: 1;
+    display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
+  .rotate-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  /* Dedicated stop, anchored to the widget's own bottom-right corner — separate from
+     (and always available alongside) the toggle-to-stop behavior on the CW button. */
+  .stop-btn { position: absolute; right: 6px; bottom: 6px; width: 26px; height: 26px;
+    border-radius: 50%; border: 2px solid var(--err); background: var(--card); color: var(--err);
+    font-size: 10px; display: flex; align-items: center; justify-content: center;
+    padding: 0; cursor: pointer; z-index: 1; }
 </style>
 </head>
 <body>
@@ -172,7 +188,14 @@
                   stroke-width="4" stroke-linecap="round"/>
             <circle cx="100" cy="35" r="4" fill="var(--accent)"/>
           </svg>
-          <div class="dial-value" id="tableValue">—</div>
+          <div class="table-controls">
+            <button type="button" class="rotate-btn" id="rotateCcwBtn"
+                    title="Безперервне обертання проти годинникової стрілки (M102 P1) / зупинка (M103)">↺</button>
+            <div class="dial-value" id="tableValue">—</div>
+            <button type="button" class="rotate-btn" id="rotateCwBtn"
+                    title="Безперервне обертання за годинниковою стрілкою (M102 P0) / зупинка (M103)">↻</button>
+          </div>
+          <button type="button" class="stop-btn" id="tableStopBtn" title="Зупинити обертання столу (M103)">■</button>
         </div>
       </div>
     </div>
@@ -443,7 +466,46 @@ function attachWheelCommand(el, sensitivity, commit) {
 // 0.1 => ~10°/wheel click, matching M104's own example (M104 Q10).
 attachWheelCommand(document.getElementById('tableSvg'), 0.1, (delta) => {
   const q = Math.round(delta);
-  if (q !== 0) quickSend(`M104 Q${q}`);
+  if (q !== 0) { stopTableRotation(); quickSend(`M104 Q${q}`); }
+});
+
+// Continuous rotation buttons (M102 P0/P1 = CW/CCW, M103 = stop) — separate from the
+// wheel's bounded M104 nudge above. Click a direction to start spinning that way, click
+// it again (or the other one) to change direction or stop; tracked client-side since the
+// status report has no "is spinning continuously" flag to poll.
+let tableRotation = null; // null | 'cw' | 'ccw'
+
+function updateRotationButtons() {
+  document.getElementById('rotateCcwBtn').classList.toggle('active', tableRotation === 'ccw');
+  document.getElementById('rotateCwBtn').classList.toggle('active', tableRotation === 'cw');
+}
+
+function stopTableRotation() {
+  if (tableRotation === null) return;
+  tableRotation = null;
+  updateRotationButtons();
+}
+
+function toggleTableRotation(dir) {
+  if (tableRotation === dir) {
+    tableRotation = null;
+    quickSend('M103');
+  } else {
+    tableRotation = dir;
+    quickSend(dir === 'ccw' ? 'M102 P1' : 'M102 P0');
+  }
+  updateRotationButtons();
+}
+
+document.getElementById('rotateCcwBtn').addEventListener('click', () => toggleTableRotation('ccw'));
+document.getElementById('rotateCwBtn').addEventListener('click', () => toggleTableRotation('cw'));
+
+// Dedicated stop: always sends M103, regardless of tracked state — covers rotation
+// started some other way (e.g. a manual M102 typed into the G-code box).
+document.getElementById('tableStopBtn').addEventListener('click', () => {
+  tableRotation = null;
+  updateRotationButtons();
+  quickSend('M103');
 });
 
 // Servo (M101): absolute target, so base it on the *currently displayed* angle
@@ -486,6 +548,7 @@ async function quickSend(line) {
 }
 
 async function rt(which) {
+  if (which === 'reset') stopTableRotation(); // soft reset kills any M102 spin too
   await api('/api/' + which, { method: 'POST' });
   refreshStatus();
 }
