@@ -123,11 +123,19 @@
     padding: 0; cursor: pointer; z-index: 1; }
   .jog-btn-left { left: 8px; }
   .jog-btn-right { right: 8px; }
-  /* Hangs half off the Y bar's own bottom-right corner — "under the bar, on the right". */
+  /* Same idea rotated 90° for the Z bar: top/bottom instead of left/right. top:auto on
+     the "down" button releases the base rule's top:50% — otherwise, with an explicit
+     height and both top and bottom set, top wins and bottom is silently ignored. */
+  .jog-btn-up { top: 8px; left: 50%; transform: translateX(-50%); }
+  .jog-btn-down { top: auto; bottom: 8px; left: 50%; transform: translateX(-50%); }
+  /* Hangs half off the bar's own bottom-right corner. */
   .zero-y-btn { position: absolute; right: 44px; bottom: -13px; width: 24px; height: 24px;
     border-radius: 50%; border: 2px solid var(--accent); background: var(--card); color: var(--accent);
     font-size: 12px; font-weight: 700; line-height: 1; display: flex; align-items: center;
     justify-content: center; padding: 0; cursor: pointer; z-index: 2; }
+  /* The Z bar is too narrow (70px) for the Y zero-button's left offset — hang it off the
+     corner itself instead. */
+  .zero-z-btn { right: -8px; bottom: -13px; }
 </style>
 </head>
 <body>
@@ -181,7 +189,13 @@
       <div class="dial-widget dial-z-wrap">
         <div class="axis-box" id="zBox">
           <span class="dial-badge">Z</span>
+          <button type="button" class="jog-btn jog-btn-up" id="zUpBtn"
+                  title="Перемістити на 20 мм вгору (Z+20, F600)">↑</button>
           <div class="dial-value" id="zValue">—</div>
+          <button type="button" class="jog-btn jog-btn-down" id="zDownBtn"
+                  title="Перемістити на 20 мм вниз (Z-20, F600)">↓</button>
+          <button type="button" class="zero-y-btn zero-z-btn" id="zZeroBtn"
+                  title="Занулити Z (в G54, перемикнувши на нього за потреби): G10 L20 P1 Z0">0</button>
         </div>
       </div>
 
@@ -564,6 +578,14 @@ document.getElementById('yRightBtn').addEventListener('click', () => quickSend('
 // WCS is active wouldn't zero what the user is currently looking at.
 document.getElementById('yZeroBtn').addEventListener('click', async () => {
   await api('/api/gcode', { method: 'POST', body: 'G54\nG10 L20 P1 Y0' });
+  refreshStatus();
+});
+
+// Same as above for Z: fixed 20mm up/down jog and a zero-in-G54 button.
+document.getElementById('zUpBtn').addEventListener('click', () => quickSend('$J=G91 Z20 F600'));
+document.getElementById('zDownBtn').addEventListener('click', () => quickSend('$J=G91 Z-20 F600'));
+document.getElementById('zZeroBtn').addEventListener('click', async () => {
+  await api('/api/gcode', { method: 'POST', body: 'G54\nG10 L20 P1 Z0' });
   refreshStatus();
 });
 
