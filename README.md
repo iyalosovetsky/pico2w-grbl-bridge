@@ -183,8 +183,9 @@ the top, a tall **Z** bar down the right edge, and underneath the Y bar the tilt
 circle tucked into the top-right corner with the turntable's ellipse spreading out
 beneath/behind it to fill the rest of the space:
 
-![Jog dials card — Y bar on top, Z bar on the right, tilt circle tucked into the top-right
-corner, turntable ellipse filling the rest](docs/jog-dials.png)
+![The web page: state card, G-code sender, jog dials (Y bar on top, Z bar on the right,
+tilt circle tucked into the top-right corner, turntable ellipse filling the rest), and
+console](docs/jog-dials.png)
 
 | Widget | Shape | Sends | Range |
 |---|---|---|---|
