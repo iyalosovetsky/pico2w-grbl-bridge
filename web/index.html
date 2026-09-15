@@ -52,6 +52,17 @@
   .console-header .btnrow { margin: 0; }
   button.small { padding: 5px 10px; font-size: 12px; }
   .foot { color: var(--muted); font-size: 12px; margin-top: 10px; }
+
+  .dials { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .dial-widget { display: flex; flex-direction: column; align-items: center; gap: 2px; user-select: none; }
+  .dial-widget svg { touch-action: none; cursor: ns-resize; }
+  .dial-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .dial-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .axis-box { width: 60px; height: 140px; border: 2px solid var(--border); border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; cursor: ns-resize;
+    background: var(--card); touch-action: none; }
+  .axis-box.horizontal { width: 140px; height: 60px; }
+  .axis-box .dial-value { font-size: 22px; }
 </style>
 </head>
 <body>
@@ -84,6 +95,44 @@
         <button onclick="quickSend('$H')">$H</button>
       </div>
     </div>
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <h2>Джог коліщатком миші</h2>
+    <div class="dials">
+      <div class="dial-widget">
+        <svg id="tableSvg" viewBox="0 0 140 140" width="140" height="140">
+          <circle cx="70" cy="70" r="60" fill="none" stroke="var(--border)" stroke-width="2"/>
+          <line id="tableNeedle" x1="70" y1="70" x2="126" y2="70" stroke="var(--accent)"
+                stroke-width="4" stroke-linecap="round"/>
+          <circle cx="70" cy="70" r="4" fill="var(--accent)"/>
+        </svg>
+        <div class="dial-value" id="tableValue">—</div>
+        <div class="dial-label">Стіл</div>
+      </div>
+
+      <div class="dial-widget">
+        <svg id="servoSvg" viewBox="0 0 140 140" width="140" height="140">
+          <path id="servoTrack" fill="none" stroke="var(--border)" stroke-width="2"/>
+          <line id="servoNeedle" x1="70" y1="70" x2="70" y2="70" stroke="var(--warn)"
+                stroke-width="4" stroke-linecap="round"/>
+          <circle cx="70" cy="70" r="4" fill="var(--warn)"/>
+        </svg>
+        <div class="dial-value" id="servoValue">—</div>
+        <div class="dial-label">Сервотілт</div>
+      </div>
+
+      <div class="dial-widget">
+        <div class="axis-box horizontal" id="yBox"><div class="dial-value" id="yValue">—</div></div>
+        <div class="dial-label">Y (горизонталь)</div>
+      </div>
+
+      <div class="dial-widget">
+        <div class="axis-box" id="zBox"><div class="dial-value" id="zValue">—</div></div>
+        <div class="dial-label">Z (вертикаль)</div>
+      </div>
+    </div>
+    <p class="foot">Наведіть курсор на елемент і крутіть коліщатко миші, щоб перемістити.</p>
   </div>
 
   <div class="card" style="margin-top:12px;">
@@ -175,6 +224,7 @@ async function refreshStatus() {
   try {
     const r = await api('/api/status');
     const s = await r.json();
+    latestStatus = s;
 
     if (s.last_status_ms !== lastSeenStatusMs) {
       lastSeenStatusMs = s.last_status_ms;
@@ -209,6 +259,8 @@ async function refreshStatus() {
       rigRows += `<tr><td>Сервотілт</td><td>${fmt2(s.servo)}°</td><td></td></tr>`;
     }
     rig.innerHTML = rigRows;
+
+    if (!stale) updateDials(s);
 
     document.getElementById('feedVal').textContent = stale ? '—' : s.feed;
     document.getElementById('speedVal').textContent = stale ? '—' : s.speed;
@@ -246,6 +298,110 @@ async function refreshStatus() {
     statusFetchInFlight = false;
   }
 }
+
+// ---- Jog dials (table / servo / Y / Z) ----
+// Screen-angle convention for all dials here: 0° points right (3 o'clock, positive
+// X-axis), angle increases counter-clockwise — standard math convention, not clock
+// convention. polarToXY already accounts for SVG's Y-axis pointing down, so plugging in
+// a math angle directly gives the correct on-screen counter-clockwise sweep.
+function polarToXY(cx, cy, r, mathDeg) {
+  const rad = mathDeg * Math.PI / 180;
+  return { x: cx + r * Math.cos(rad), y: cy - r * Math.sin(rad) };
+}
+
+function setNeedle(lineEl, cx, cy, r, mathDeg) {
+  const { x, y } = polarToXY(cx, cy, r, mathDeg);
+  lineEl.setAttribute('x1', cx);
+  lineEl.setAttribute('y1', cy);
+  lineEl.setAttribute('x2', x.toFixed(2));
+  lineEl.setAttribute('y2', y.toFixed(2));
+}
+
+function buildArcPath(cx, cy, r, fromDeg, toDeg, steps) {
+  let d = '';
+  for (let i = 0; i <= steps; i++) {
+    const deg = fromDeg + (toDeg - fromDeg) * (i / steps);
+    const { x, y } = polarToXY(cx, cy, r, deg);
+    d += (i === 0 ? 'M' : 'L') + x.toFixed(2) + ' ' + y.toFixed(2) + ' ';
+  }
+  return d.trim();
+}
+
+// Servo hardware range ($451/$452 in the grblHAL fork) mapped onto clock-face positions:
+// 130° (scanner horizontal) -> 9:30 -> 165° here; 235° (scanner down) -> 5:00 -> 300°.
+// The arc sweeps through the bottom (270°), the short way between those two points.
+const SERVO_MIN = 130, SERVO_MAX = 235;
+const SERVO_MIN_DEG = 165, SERVO_MAX_DEG = 300;
+
+document.getElementById('servoTrack').setAttribute(
+  'd', buildArcPath(70, 70, 60, SERVO_MIN_DEG, SERVO_MAX_DEG, 40));
+
+let latestStatus = null; // for the servo's absolute-target math (current + wheel delta)
+
+function updateDials(s) {
+  if (s.table !== null && s.table !== undefined) {
+    setNeedle(document.getElementById('tableNeedle'), 70, 70, 50, s.table);
+    document.getElementById('tableValue').textContent = Math.round(s.table) + '°';
+  }
+  if (s.servo !== null && s.servo !== undefined) {
+    const clamped = Math.max(SERVO_MIN, Math.min(SERVO_MAX, s.servo));
+    const frac = (clamped - SERVO_MIN) / (SERVO_MAX - SERVO_MIN);
+    const deg = SERVO_MIN_DEG + frac * (SERVO_MAX_DEG - SERVO_MIN_DEG);
+    setNeedle(document.getElementById('servoNeedle'), 70, 70, 50, deg);
+    document.getElementById('servoValue').textContent = Math.round(s.servo) + '°';
+  }
+  if (s.has_wpos && s.wpos[1] !== undefined) {
+    document.getElementById('yValue').textContent = fmt(s.wpos[1]);
+  }
+  if (s.has_wpos && s.wpos[2] !== undefined) {
+    document.getElementById('zValue').textContent = fmt(s.wpos[2]);
+  }
+}
+
+// Accumulates wheel deltaY (already scaled by `sensitivity`) while the pointer sits over
+// `el`, and calls `commit(total)` once ~220ms after the user stops scrolling — one
+// command per gesture instead of one per wheel tick, which would otherwise flood the
+// G-code queue.
+function attachWheelCommand(el, sensitivity, commit) {
+  let pending = 0;
+  let timer = null;
+  el.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    pending += e.deltaY * sensitivity;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const amount = pending;
+      pending = 0;
+      timer = null;
+      commit(amount);
+    }, 220);
+  }, { passive: false });
+}
+
+// Table (M104): relative, additive on grblHAL's side already — just send the delta.
+// 0.1 => ~10°/wheel click, matching M104's own example (M104 Q10).
+attachWheelCommand(document.getElementById('tableSvg'), 0.1, (delta) => {
+  const q = Math.round(delta);
+  if (q !== 0) quickSend(`M104 Q${q}`);
+});
+
+// Servo (M101): absolute target, so base it on the *currently displayed* angle
+// (latestStatus.servo) and clamp to the hardware range before sending.
+attachWheelCommand(document.getElementById('servoSvg'), 0.05, (delta) => {
+  if (!latestStatus || latestStatus.servo === null || latestStatus.servo === undefined) return;
+  const target = Math.max(SERVO_MIN, Math.min(SERVO_MAX, latestStatus.servo + delta));
+  quickSend(`M101 Q${target.toFixed(1)}`);
+});
+
+// Y/Z: relative jog moves. 0.02 => ~2mm per typical wheel click.
+attachWheelCommand(document.getElementById('yBox'), 0.02, (delta) => {
+  if (Math.abs(delta) < 0.001) return;
+  quickSend(`$J=G91 Y${delta.toFixed(3)} F300`);
+});
+attachWheelCommand(document.getElementById('zBox'), 0.02, (delta) => {
+  if (Math.abs(delta) < 0.001) return;
+  quickSend(`$J=G91 Z${delta.toFixed(3)} F300`);
+});
 
 function escapeHtml(s) {
   return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));

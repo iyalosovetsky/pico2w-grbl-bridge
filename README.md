@@ -174,6 +174,30 @@ Two ways to give the bridge WiFi credentials, and they compose:
 `WIFI_PASSWORD` as environment variables instead if that matters to you — `build.sh`
 picks them up automatically.
 
+## Jog dials
+
+The web page's "Джог коліщатком миші" card lets you nudge all four moving parts with
+the mouse wheel instead of typing G-code — hover a widget and scroll:
+
+| Widget | Shape | Sends | Range |
+|---|---|---|---|
+| Стіл (turntable) | Full circle, needle | `M104 Q<delta>` (relative — grblHAL accumulates it) | none (continuous rotation) |
+| Сервотілт (tilt servo) | Partial arc, needle | `M101 Q<absolute>` (current + delta, clamped) | 130°-235° ($451/$452) |
+| Y | Wide box | `$J=G91 Y<delta> F300` (jog) | — |
+| Z | Tall box | `$J=G91 Z<delta> F300` (jog) | — |
+
+All four debounce wheel input (~220ms after you stop scrolling) into a single command
+per gesture rather than one per wheel tick — `attachWheelCommand()` in `web/index.html`.
+Scrolling away from you (up) decreases the table angle / Y or Z position; toward you
+(down) increases it.
+
+The two circular dials share one screen-angle convention (`polarToXY()`): 0° points
+right (3 o'clock / positive X-axis, not 12 o'clock), and increasing angle sweeps
+**counter-clockwise** — standard math convention, not clock convention. The servo's arc
+maps its hardware range onto clock-face positions per this rig's actual travel (130° =
+scanner horizontal = "9:30", 235° = scanner down = "5:00"), swept through the bottom of
+the dial rather than the top.
+
 ## REST API
 
 All bodies are plain text (no JSON payloads to build by hand), responses are JSON.
