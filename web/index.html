@@ -76,8 +76,9 @@
      whole area instead of being confined to whatever's left below it. */
   .dial-main { grid-column: 1; grid-row: 2; position: relative; min-height: 0; height: 100%; }
   /* Tucked into the top-right corner, flush against the Y bar above and the Z bar to
-     the right. */
-  .dial-servo-wrap { position: absolute; top: 0; right: 0; z-index: 1; }
+     the right — nudged further right (past the box edge, into the gap) so its arc
+     doesn't crowd the ellipse's tip. */
+  .dial-servo-wrap { position: absolute; top: 0; right: -14px; z-index: 1; }
   .dial-servo-wrap svg { width: 100px; height: 100px; }
   .dial-table-wrap { position: absolute; inset: 0; display: flex; flex-direction: column;
     align-items: center; }
@@ -86,8 +87,9 @@
      slightly mismatched at some browser zoom levels, shrinking the effective box down to
      a sliver and making the ellipse look squashed/tiny instead of just smaller. flex:1
      with a min-height floor gives it as much of the box's height as the value/label
-     below leave available. */
-  .dial-table-wrap svg { width: auto; flex: 1 1 auto; min-height: 70px; max-width: 100%; display: block; }
+     below leave available. Shifted left a touch so its tip clears the tilt circle. */
+  .dial-table-wrap svg { width: auto; flex: 1 1 auto; min-height: 70px; max-width: 100%;
+    display: block; transform: translateX(-16px); }
   .dial-table-wrap .dial-value, .dial-table-wrap .dial-label { flex: 0 0 auto; }
 </style>
 </head>
@@ -409,6 +411,9 @@ function attachWheelCommand(el, sensitivity, commit) {
   let pending = 0;
   let timer = null;
   el.addEventListener('wheel', (e) => {
+    // Ctrl/Cmd+wheel is the browser's page-zoom gesture — leave it alone (don't
+    // preventDefault, don't treat it as a jog input) instead of hijacking it.
+    if (e.ctrlKey || e.metaKey) return;
     e.preventDefault();
     pending += e.deltaY * sensitivity;
     clearTimeout(timer);
