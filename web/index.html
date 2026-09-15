@@ -64,18 +64,25 @@
 
   /* Y (top bar, full width) / Z (right bar, under Y) / servo+table (remaining area) */
   .dials-layout { display: grid; grid-template-columns: 76% 1fr; grid-template-rows: 64px 1fr;
-    gap: 10px; height: 43vh; min-height: 266px; }
+    gap: 6px; height: 34vh; min-height: 213px; }
   .dial-y-wrap { grid-column: 1 / span 2; grid-row: 1; display: flex; flex-direction: column; height: 100%; }
   .dial-y-wrap .axis-box { flex: 1 1 auto; width: 100%; min-height: 0; }
   .dial-z-wrap { grid-column: 2; grid-row: 2; display: flex; flex-direction: column;
     align-items: center; height: 100%; }
   .dial-z-wrap .axis-box { flex: 0 0 75%; width: 70px; align-self: center; }
-  .dial-main { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; gap: 8px;
+  .dial-main { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; gap: 4px;
     min-height: 0; height: 100%; }
-  .dial-servo-wrap { flex: 0 0 auto; align-self: center; }
-  .dial-servo-wrap svg { width: 120px; height: 120px; }
-  .dial-table-wrap { flex: 1 1 auto; min-height: 0; width: 100%; }
-  .dial-table-wrap svg { width: 100%; height: 100%; display: block; }
+  /* Tucked into the top-right corner, flush against the Y bar above and the Z bar to
+     the right, so the ellipse below gets as much vertical room as possible. */
+  .dial-servo-wrap { flex: 0 0 auto; align-self: flex-end; }
+  .dial-servo-wrap svg { width: 100px; height: 100px; }
+  .dial-table-wrap { flex: 1 1 auto; min-height: 70px; width: 100%;
+    display: flex; align-items: center; justify-content: center; }
+  /* width:auto (not 100%) lets the SVG's intrinsic viewBox ratio (5:3) drive its own
+     width from the definite height — two independently-computed percentages here could
+     end up slightly mismatched at some browser zoom levels, shrinking the effective box
+     down to a sliver and making the ellipse look squashed/tiny instead of just smaller. */
+  .dial-table-wrap svg { width: auto; height: 100%; max-width: 100%; display: block; }
 </style>
 </head>
 <body>
