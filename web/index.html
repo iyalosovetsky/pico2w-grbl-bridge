@@ -6,12 +6,15 @@
 <title>Scanner Rig Bridge</title>
 <style>
   :root {
-    color-scheme: light dark;
+    /* Always light, regardless of the OS/browser preference — the light palette won
+       out over the old dark-mode default. */
+    color-scheme: light;
     --bg: #f5f5f5; --fg: #1a1a1a; --card: #ffffff; --border: #ddd;
     --accent: #2563eb; --ok: #16a34a; --warn: #d97706; --err: #dc2626; --muted: #666;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #16181c; --fg: #eaeaea; --card: #1f2227; --border: #33363c; --muted: #9aa0a6; }
+    /* Neutral gray overlay, not a fixed color — compositing it over --card reads as a
+       touch darker than the surrounding card, so dial surfaces (bars/circle/ellipse)
+       stand out a little instead of blending into the background. */
+    --dial-fill: rgba(127, 127, 127, .08);
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; }
@@ -64,7 +67,7 @@
     pointer-events: none; line-height: 1.4; }
   .axis-box { position: relative; border: 2px solid var(--border); border-radius: 10px;
     display: flex; align-items: center; justify-content: center; cursor: ns-resize;
-    background: var(--card); touch-action: none; }
+    background: var(--dial-fill); touch-action: none; }
   .axis-box .dial-value { font-size: 22px; }
 
   /* Y (top bar, full width) / Z (right bar, under Y) / servo+table (remaining area) */
@@ -150,6 +153,7 @@
         <div class="dial-widget dial-servo-wrap">
           <span class="dial-badge">Tilt</span>
           <svg id="servoSvg" viewBox="0 0 140 140">
+            <circle cx="70" cy="70" r="60" fill="var(--dial-fill)"/>
             <path id="servoTrack" fill="none" stroke="var(--border)" stroke-width="2"/>
             <line id="servoNeedle" x1="70" y1="70" x2="70" y2="70" stroke="var(--warn)"
                   stroke-width="4" stroke-linecap="round"/>
@@ -161,7 +165,7 @@
         <div class="dial-widget dial-table-wrap">
           <span class="dial-badge">Стіл</span>
           <svg id="tableSvg" viewBox="0 0 200 70" preserveAspectRatio="xMidYMid meet">
-            <ellipse cx="100" cy="35" rx="94" ry="32" fill="none" stroke="var(--border)" stroke-width="2"/>
+            <ellipse cx="100" cy="35" rx="94" ry="32" fill="var(--dial-fill)" stroke="var(--border)" stroke-width="2"/>
             <ellipse cx="100" cy="35" rx="63" ry="21" fill="none" stroke="var(--border)" stroke-width="1"/>
             <ellipse cx="100" cy="35" rx="32" ry="11" fill="none" stroke="var(--border)" stroke-width="1"/>
             <line id="tableNeedle" x1="100" y1="35" x2="192" y2="35" stroke="var(--accent)"
